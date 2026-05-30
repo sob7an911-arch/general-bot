@@ -11,7 +11,6 @@ BOT_TOKEN = "8606943008:AAGcFvCT73iHY71OOhkw2USy8bNMki72g8s"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ================== قاعدة البيانات ==================
-# دالة مساعدة لتنفيذ أوامر قاعدة البيانات بأمان لتجنب تعارض العمليات
 def execute_query(query, params=(), fetch=False, fetchall=False):
     conn = sqlite3.connect('general_bot.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -25,7 +24,6 @@ def execute_query(query, params=(), fetch=False, fetchall=False):
     conn.close()
     return result
 
-# إنشاء الجدول إذا لم يكن موجوداً
 def init_db():
     execute_query('''
         CREATE TABLE IF NOT EXISTS players (
@@ -36,7 +34,6 @@ def init_db():
 
 init_db()
 
-# دالة لتحويل الكلمة العربية إلى نوع القائمة المعتمد
 def get_list_en(list_ar):
     if "مخرب" in list_ar:
         return "المخربين"
@@ -48,20 +45,18 @@ def get_list_en(list_ar):
 
 # ================== أوامر البوت ==================
 
-# 1. أمر الترحيب والمساعدة
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     text = (
         "🤖 أهلاً بك في بوت إدارة مجتمع الجنرال (نخبة العرب).\n\n"
-        "📌 **الأوامر المتاحة:**\n"
-        "➕ `أضف @اسم_اللاعب إلى قائمة المخربين`\n"
-        "➖ `احذف @اسم_اللاعب من قائمة المخربين`\n"
-        "📋 `عرض قائمة المخربين`\n\n"
-        "*(يمكنك استبدال 'المخربين' بـ: المشرفين، أو المسجلين)*"
+        "📌 <b>الأوامر المتاحة:</b>\n"
+        "➕ أضف @اسم_اللاعب إلى قائمة المخربين\n"
+        "➖ احذف @اسم_اللاعب من قائمة المخربين\n"
+        "📋 عرض قائمة المخربين\n\n"
+        "<i>(يمكنك استبدال 'المخربين' بـ: المشرفين، أو المسجلين)</i>"
     )
-    bot.reply_to(message, text, parse_mode="Markdown")
+    bot.reply_to(message, text, parse_mode="HTML")
 
-# 2. أمر الإضافة للقوائم
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("أضف"))
 def handle_add_player(message):
     match = re.search(r"أضف\s+@?([\w_]+)\s+إلى\s+قائمة\s+([\u0600-\u06FF]+)", message.text.strip())
@@ -76,9 +71,8 @@ def handle_add_player(message):
         else:
             bot.reply_to(message, "❌ القائمة غير معروفة. (القوائم المتاحة: المخربين، المشرفين، المسجلين)")
     else:
-        bot.reply_to(message, "❌ الصيغة غير صحيحة. مثال:\n`أضف @PlayerName إلى قائمة المسجلين`", parse_mode="Markdown")
+        bot.reply_to(message, "❌ الصيغة غير صحيحة. مثال:\nأضف @PlayerName إلى قائمة المسجلين")
 
-# 3. أمر الحذف من القوائم
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("احذف"))
 def handle_remove_player(message):
     match = re.search(r"احذف\s+@?([\w_]+)\s+من\s+قائمة\s+([\u0600-\u06FF]+)", message.text.strip())
@@ -97,9 +91,8 @@ def handle_remove_player(message):
         else:
             bot.reply_to(message, "❌ القائمة غير معروفة.")
     else:
-        bot.reply_to(message, "❌ الصيغة غير صحيحة. مثال:\n`احذف @PlayerName من قائمة المسجلين`", parse_mode="Markdown")
+        bot.reply_to(message, "❌ الصيغة غير صحيحة. مثال:\nاحذف @PlayerName من قائمة المسجلين")
 
-# 4. أمر عرض محتوى القوائم
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("عرض قائمة"))
 def handle_show_list(message):
     list_ar = message.text.replace("عرض قائمة", "").strip()
@@ -108,17 +101,16 @@ def handle_show_list(message):
     if list_type:
         rows = execute_query("SELECT username FROM players WHERE list_type = ?", (list_type,), fetchall=True)
         if rows:
-            response = f"📋 **قائمة {list_type}:**\n\n"
+            response = f"📋 <b>قائمة {list_type}:</b>\n\n"
             for i, row in enumerate(rows, 1):
                 response += f"{i}. @{row[0]}\n"
-            bot.reply_to(message, response, parse_mode="Markdown")
+            bot.reply_to(message, response, parse_mode="HTML")
         else:
             bot.reply_to(message, f"📭 قائمة {list_type} فارغة حالياً.")
     else:
-        bot.reply_to(message, "❌ القائمة غير معروفة. الرجاء كتابة:\n`عرض قائمة المسجلين`", parse_mode="Markdown")
+        bot.reply_to(message, "❌ القائمة غير معروفة. الرجاء كتابة:\nعرض قائمة المسجلين")
 
 # ================== إعدادات الخادم والتشغيل ==================
-# خادم وهمي لضمان عمل البوت على منصة Render دون توقف
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -132,9 +124,6 @@ def run_health_server():
     server.serve_forever()
 
 if __name__ == "__main__":
-    # تشغيل الخادم الوهمي في مسار جانبي
     server_thread = threading.Thread(target=run_health_server, daemon=True)
     server_thread.start()
-    
-    # تشغيل البوت لاستقبال الرسائل
     bot.infinity_polling()
