@@ -191,26 +191,23 @@ def send_server_code(message):
             continue
     bot.edit_message_text(f"✅ تم الإرسال بنجاح إلى {success_count} لاعب.", message.chat.id, msg.message_id)
 
-# دالة مساعدة لحفظ وقراءة رقم السيرفر (ضعها قبل دالة اضافة نتائج)
+import os
+
+# دالة رقم السيرفر
 def get_and_increment_server_number():
     file_name = "server_number.txt"
-    # إذا لم يكن الملف موجوداً، نبدأ من 111
     if not os.path.exists(file_name):
         with open(file_name, "w") as f:
             f.write("111")
         num = 111
     else:
-        # قراءة الرقم الحالي
         with open(file_name, "r") as f:
             try:
                 num = int(f.read().strip())
             except:
                 num = 111
-    
-    # زيادة الرقم بمقدار 1 للسيرفر القادم
     with open(file_name, "w") as f:
         f.write(str(num + 1))
-        
     return num
 
 
@@ -225,12 +222,18 @@ def add_results(message):
             return
 
         points_map = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
-        ws = sh.worksheet("الأبطال")
         
-        # 1. قراءة البيانات التراكمية القديمة من ملف الإكسل
+        # الاتصال بورقة الأبطال وورقة النسخة الاحتياطية
+        ws = sh.worksheet("الأبطال")
+        try:
+            ws_backup = sh.worksheet("نسخة احتياطية")
+        except Exception:
+            bot.reply_to(message, "⚠️ يرجى إنشاء ورقة جديدة في ملف الإكسل باسم 'نسخة احتياطية' أولاً.")
+            return
+        
+        # قراءة البيانات التراكمية القديمة
         rows = ws.get_all_values()
         scores = {}
-        # نتخطى الصف الأول (العناوين)
         for row in rows[1:]:
             if len(row) >= 2:
                 name_key = row[0].strip().lower()
@@ -239,43 +242,45 @@ def add_results(message):
                 except:
                     scores[name_key] = 0
 
-        # جلب رقم السيرفر الحالي (يبدأ من 111 كما طلبت)
+        # جلب رقم السيرفر (يبدأ من 111)
         server_num = get_and_increment_server_number()
 
-        # 2. إضافة النقاط الجديدة وتجهيز رسالة نتائج السيرفر الحالي
-        log_text = f"🏆 **نتائج سيرفر رقم {server_num}:**\n"
+        # إضافة النقاط الجديدة وتغيير العنوان كما طلبت
+        log_text = f"🏆 **ترتيب الفائزين في سيرفر رقم {server_num}:**\n"
         for idx, name in enumerate(parts[:10]):
             user = name.replace("@", "").strip().lower()
             pts = points_map[idx]
-            
-            # هذه هي المعادلة التي تجمع رصيد "أحمد" القديم مع الجديد
             scores[user] = scores.get(user, 0) + pts
-            
             log_text += f"المركز {idx+1}: @{user} (+{pts} ذهب)\n"
 
-        # 3. تحديث الإكسل بالنتائج التراكمية الجديدة (الكلية)
+        # تجهيز البيانات للإكسل
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         data_to_write = [["username", "points"]]
         for user, pts in sorted_scores:
             data_to_write.append([user, pts])
         
+        # 1. التحديث في الورقة الأساسية دفعة واحدة
         ws.clear()
         ws.update(data_to_write) 
+        
+        # 2. التحديث في ورقة النسخة الاحتياطية لحفظ البيانات
+        ws_backup.clear()
+        ws_backup.update(data_to_write)
 
-        # 4. النشر في القناة
-        # الرسالة الأولى: نتائج السيرفر الحالي فقط
+        # النشر في القناة (رسالة السيرفر)
         bot.send_message(CHANNEL_ID, log_text, parse_mode="Markdown")
 
-        # الرسالة الثانية: قائمة التوب 30 (الرصيد التراكمي لجميع السيرفرات)
-        top_30_text = f"🏅 **قائمة أبطال السيرفر (أعلى 30 لاعباً - الذهب التراكمي حتى سيرفر {server_num}):**\n\n"
+        # النشر في القناة (رسالة التراكمي بالعنوان الجديد)
+        top_30_text = f"🏅 **ترتيب أبطال نخبة العرب:**\n\n"
         for i, (user, pts) in enumerate(sorted_scores[:30]):
             top_30_text += f"{i+1}. @{user} ({pts} ذهب)\n"
         
         bot.send_message(CHANNEL_ID, top_30_text, parse_mode="Markdown")
-        bot.reply_to(message, f"✅ تم تحديث ونشر نتائج السيرفر رقم {server_num} التراكمية بنجاح.")
+        bot.reply_to(message, f"✅ تم النشر بنجاح! وتم حفظ نسخة احتياطية للبيانات في الإكسل.")
 
     except Exception as e:
         bot.reply_to(message, f"❌ خطأ تقني: {e}")
+
 
 
 
