@@ -127,6 +127,7 @@ def protect_player(message):
     bot.reply_to(message, f"🛡️ تم تسجيل حمايتك يا @{user} لدولة: {country}")
 
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("أضف"))
+@bot.message_handler(func=lambda m: m.text and m.text.startswith("أضف"))
 def add_to_list(message):
     if not is_moderator(message.from_user.username):
         bot.reply_to(message, "❌ ليس لديك صلاحية للإضافة.")
@@ -135,14 +136,20 @@ def add_to_list(message):
     try:
         # الصيغة: أضف @user إلى قائمة [اسم القائمة]
         parts = message.text.split()
+        if len(parts) < 5:
+            bot.reply_to(message, "⚠️ الصيغة ناقصة. اكتب: أضف @user إلى قائمة [اسم القائمة]")
+            return
+
         target = parts[1].replace("@", "")
-        list_name = parts[4] # هذه هي الكلمة الخامسة في الجملة (الرقم 4 لأن العد يبدأ من 0)
+        list_name = parts[4] 
         
+        # محاولة الوصول للورقة
         ws = sh.worksheet(list_name)
         ws.append_row([target])
         bot.reply_to(message, f"✅ تم إضافة @{target} إلى قائمة {list_name} بنجاح.")
     except Exception as e:
-        bot.reply_to(message, "⚠️ الصيغة غير صحيحة.\nتأكد من كتابة الأمر هكذا:\nأضف @user إلى قائمة المشرفين")
+        # هنا سيخبرك البوت بـ "اسم الخطأ" الحقيقي
+        bot.reply_to(message, f"⚠️ خطأ: {e}\nتأكد أن اسم القائمة في ملف الإكسل مطابق تماماً لما كتبته.")
 
 
 
