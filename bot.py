@@ -191,11 +191,33 @@ def send_server_code(message):
             continue
     bot.edit_message_text(f"✅ تم الإرسال بنجاح إلى {success_count} لاعب.", message.chat.id, msg.message_id)
 
+# دالة مساعدة لحفظ وقراءة رقم السيرفر (ضعها قبل دالة اضافة نتائج)
+def get_and_increment_server_number():
+    file_name = "server_number.txt"
+    # إذا لم يكن الملف موجوداً، نبدأ من 111
+    if not os.path.exists(file_name):
+        with open(file_name, "w") as f:
+            f.write("111")
+        num = 111
+    else:
+        # قراءة الرقم الحالي
+        with open(file_name, "r") as f:
+            try:
+                num = int(f.read().strip())
+            except:
+                num = 111
+    
+    # زيادة الرقم بمقدار 1 للسيرفر القادم
+    with open(file_name, "w") as f:
+        f.write(str(num + 1))
+        
+    return num
+
+
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("اضافة نتائج"))
 def add_results(message):
     if not is_moderator(message.from_user.username): return
     try:
-        # تنظيف المدخلات جيداً
         raw_input = message.text.replace("اضافة نتائج", "").strip()
         parts = raw_input.split()
         if not parts:
@@ -205,49 +227,56 @@ def add_results(message):
         points_map = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
         ws = sh.worksheet("الأبطال")
         
-        # قراءة البيانات الحالية وتخزينها في القاموس
-        current_data = ws.get_all_values()
+        # 1. قراءة البيانات التراكمية القديمة من ملف الإكسل
+        rows = ws.get_all_values()
         scores = {}
-        # نبدأ من الصف الثاني لتخطي العناوين
-        for row in current_data[1:]:
+        # نتخطى الصف الأول (العناوين)
+        for row in rows[1:]:
             if len(row) >= 2:
-                # .strip() لإزالة أي فراغات مخفية و .lower() للتوحيد
-                user_name = row[0].strip().lower()
+                name_key = row[0].strip().lower()
                 try:
-                    scores[user_name] = int(row[1])
+                    scores[name_key] = int(row[1])
                 except:
-                    scores[user_name] = 0
+                    scores[name_key] = 0
 
-        # الجمع التراكمي
-        log_text = "🏆 نتائج السيرفر الحالي وتم إضافة الذهب التراكمي:\n"
+        # جلب رقم السيرفر الحالي (يبدأ من 111 كما طلبت)
+        server_num = get_and_increment_server_number()
+
+        # 2. إضافة النقاط الجديدة وتجهيز رسالة نتائج السيرفر الحالي
+        log_text = f"🏆 **نتائج سيرفر رقم {server_num}:**\n"
         for idx, name in enumerate(parts[:10]):
-            user = name.replace("@", "").strip().lower() # تنظيف إضافي لاسم المستخدم
+            user = name.replace("@", "").strip().lower()
             pts = points_map[idx]
-            # الجمع بدقة
+            
+            # هذه هي المعادلة التي تجمع رصيد "أحمد" القديم مع الجديد
             scores[user] = scores.get(user, 0) + pts
+            
             log_text += f"المركز {idx+1}: @{user} (+{pts} ذهب)\n"
 
-        # تحديث الملف بالكامل
-        ws.clear()
-        ws.append_row(["username", "points"])
-        # ترتيب القائمة من الأعلى للأقل
-        all_sorted = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        # 3. تحديث الإكسل بالنتائج التراكمية الجديدة (الكلية)
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        data_to_write = [["username", "points"]]
+        for user, pts in sorted_scores:
+            data_to_write.append([user, pts])
         
-        for user, pt in all_sorted:
-            ws.append_row([user, pt])
+        ws.clear()
+        ws.update(data_to_write) 
 
-        # النشر في القناة
-        bot.send_message(CHANNEL_ID, log_text)
+        # 4. النشر في القناة
+        # الرسالة الأولى: نتائج السيرفر الحالي فقط
+        bot.send_message(CHANNEL_ID, log_text, parse_mode="Markdown")
 
-        top_30_text = "🏅 **قائمة أبطال السيرفر (أعلى 30 لاعباً):**\n\n"
-        for i, (user, pts) in enumerate(all_sorted[:30]):
+        # الرسالة الثانية: قائمة التوب 30 (الرصيد التراكمي لجميع السيرفرات)
+        top_30_text = f"🏅 **قائمة أبطال السيرفر (أعلى 30 لاعباً - الذهب التراكمي حتى سيرفر {server_num}):**\n\n"
+        for i, (user, pts) in enumerate(sorted_scores[:30]):
             top_30_text += f"{i+1}. @{user} ({pts} ذهب)\n"
         
         bot.send_message(CHANNEL_ID, top_30_text, parse_mode="Markdown")
-        bot.reply_to(message, "✅ تم تحديث النتائج بنجاح.")
+        bot.reply_to(message, f"✅ تم تحديث ونشر نتائج السيرفر رقم {server_num} التراكمية بنجاح.")
 
     except Exception as e:
-        bot.reply_to(message, f"❌ خطأ: {e}")
+        bot.reply_to(message, f"❌ خطأ تقني: {e}")
+
 
 
 
