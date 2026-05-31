@@ -2,9 +2,28 @@ import telebot
 import gspread
 import time
 import threading
+import os
 from datetime import datetime, timezone, timedelta
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# --- بيانات الربط مع Google Sheets (تم تصحيح المفتاح وإعادة الحرف المفقود) ---
+# ==========================================
+# --- خادم ويب وهمي لخداع Render (مهم للباقة المجانية) ---
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write("البوت يعمل بكفاءة!".encode('utf-8'))
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), DummyHandler)
+    server.serve_forever()
+
+threading.Thread(target=run_dummy_server, daemon=True).start()
+# ==========================================
+
+# --- بيانات الربط مع Google Sheets ---
 CREDENTIALS_DICT = {
   "type": "service_account",
   "project_id": "rare-mechanic-466808-s2",
@@ -19,14 +38,12 @@ gc = gspread.service_account_from_dict(CREDENTIALS_DICT)
 sh = gc.open("General_Bot_Data")
 bot = telebot.TeleBot("8606943008:AAGcFvCT73iHY71OOhkw2USy8bNMki72g8s")
 
-MAIN_ADMIN = "ab0oturki"  # القائد العام
-CHANNEL_ID = "@abo_turky_genaral"  # معرف القناة للنشر التلقائي
+MAIN_ADMIN = "ab0oturki"  
+CHANNEL_ID = "@abo_turky_genaral"  
 
-# --- دالة جلب توقيت السعودية (UTC+3) ---
 def get_ksa_time():
     return datetime.now(timezone(timedelta(hours=3)))
 
-# --- دالات التحقق من الصلاحيات والوجود في القوائم ---
 def is_main_admin(username):
     return username and username.lower().replace("@", "") == MAIN_ADMIN.lower()
 
@@ -41,9 +58,6 @@ def check_user_in_list(username, list_name):
 def is_moderator(username):
     return is_main_admin(username) or check_user_in_list(username, "المشرفين")
 
-# --- الأوامر البرمجية ---
-
-# 1. أمر التسجيل (الأربعاء 9م حتى الجمعة 9:30م)
 @bot.message_handler(func=lambda m: m.text == "تسجيل")
 def register_player(message):
     user = message.from_user.username
@@ -56,7 +70,7 @@ def register_player(message):
         return
 
     ksa = get_ksa_time()
-    weekday = ksa.weekday()  # 2=الأربعاء, 3=الخميس, 4=الجمعة
+    weekday = ksa.weekday()  
     hour = ksa.hour
     minute = ksa.minute
 
@@ -77,7 +91,6 @@ def register_player(message):
     else:
         bot.reply_to(message, "⚠️ أنت مسجل بالفعل في القائمة.")
 
-# 2. أمر الحماية (حتى الجمعة 10م للمسجلين فقط)
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("حماية"))
 def protect_player(message):
     user = message.from_user.username
@@ -113,7 +126,6 @@ def protect_player(message):
     
     bot.reply_to(message, f"🛡️ تم تسجيل حمايتك يا @{user} لدولة: {country}")
 
-# 3. إضافة مشرف (للمدير العام فقط)
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("مشررف"))
 def add_mod(message):
     if not is_main_admin(message.from_user.username): return
@@ -125,7 +137,6 @@ def add_mod(message):
     except:
         bot.reply_to(message, "⚠️ الصيغة خاطئة، اكتب: مشررف @user")
 
-# 4. إضافة مخرب (للمدير والمشرفين)
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("مخرب"))
 def add_griefer(message):
     if not is_moderator(message.from_user.username): return
@@ -137,7 +148,6 @@ def add_griefer(message):
     except:
         bot.reply_to(message, "⚠️ الصيغة خاطئة، اكتب: مخرب @user")
 
-# 5. إرسال كود السيرفر (للمدير والمشرفين المعتمدين - خاص للمسجلين)
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("كود السيرفر"))
 def send_server_code(message):
     if not is_moderator(message.from_user.username): return
@@ -160,7 +170,6 @@ def send_server_code(message):
             continue
     bot.reply_to(message, f"📊 تم إرسال الكود بنجاح إلى {success_count} لاعب من أصل {len(users)} (الذين فعلوا البوت خاص).")
 
-# 6. نظام النقاط والنتائج التراكمية لأبطال نخبة العرب
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("اضافة نتائج"))
 def add_results(message):
     if not is_moderator(message.from_user.username): return
@@ -193,7 +202,6 @@ def add_results(message):
     except Exception as e:
         bot.reply_to(message, f"❌ حدث خطأ أثناء معالجة النتائج: {e}")
 
-# 7. الحذف من القوائم بالصلاحيات
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("حذف من"))
 def delete_from_list(message):
     sender = message.from_user.username
@@ -219,7 +227,6 @@ def delete_from_list(message):
     except:
         bot.reply_to(message, "⚠️ الصيغة الصحيحة: حذف من المسجلين @user")
 
-# 8. عرض القوائم يدوياً
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("عرض قائمة"))
 def view_list(message):
     list_name = message.text.replace("عرض قائمة", "").strip()
@@ -238,7 +245,6 @@ def view_list(message):
     except:
         bot.reply_to(message, "❌ اسم القائمة غير صحيح.")
 
-# --- 🔄 نظام النشر التلقائي في القناة حسب التوقيت المطلوبة ---
 def auto_post_scheduler():
     posted_today = ""
     while True:
