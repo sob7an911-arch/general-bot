@@ -166,56 +166,70 @@ def add_to_list(message):
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("كود السيرفر"))
 def send_server_code(message):
     if not is_moderator(message.from_user.username): return
-    code = message.text.replace("كود السيرفر", "").strip()
-    if not code:
-        bot.reply_to(message, "⚠️ يرجى كتابة الكود بعد الأمر. مثال: كود السيرفر XYZ123")
+    
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 2:
+        bot.reply_to(message, "⚠️ يرجى كتابة الكود بعد الأمر.\nمثال: كود السيرفر XYZ123")
+        return
+        
+    code = parts[1]
+    ws = sh.worksheet("المسجلين")
+    users = [u for u in ws.col_values(1)[1:] if u] # تجاهل الخلايا الفارغة
+    
+    if not users:
+        bot.reply_to(message, "❌ قائمة المسجلين فارغة.")
         return
 
-    ws = sh.worksheet("المسجلين")
-    users = ws.col_values(1)[1:] 
+    msg = bot.reply_to(message, f"🔄 جاري إرسال الكود إلى {len(users)} لاعب...")
     success_count = 0
-    
-    bot.reply_to(message, f"🔄 جاري إرسال الكود إلى {len(users)} لاعب مسجل...")
     for u in users:
         try:
-            bot.send_message(u, f"🎮 كود سيرفر الجنرال الجديد هو: `{code}`", parse_mode="Markdown")
+            bot.send_message(u, f"🎮 كود السيرفر الجديد هو: `{code}`", parse_mode="Markdown")
             success_count += 1
-            time.sleep(0.1) 
+            time.sleep(0.1)
         except:
             continue
-    bot.reply_to(message, f"📊 تم إرسال الكود بنجاح إلى {success_count} لاعب من أصل {len(users)} (الذين فعلوا البوت خاص).")
+    bot.edit_message_text(f"✅ تم الإرسال بنجاح إلى {success_count} لاعب.", message.chat.id, msg.message_id)
 
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("اضافة نتائج"))
 def add_results(message):
     if not is_moderator(message.from_user.username): return
     try:
+        # استخراج الأسماء فقط (استخدم split للفصل)
         parts = message.text.replace("اضافة نتائج", "").strip().split()
-        if len(parts) < 1:
-            bot.reply_to(message, "⚠️ يرجى ذكر أسماء الحسابات بالترتيب من الأول للعاشر متبوعة بمسافات.")
+        if not parts:
+            bot.reply_to(message, "⚠️ يرجى كتابة أسماء اللاعبين بعد الأمر (مثال: اضافة نتائج user1 user2 ...)")
             return
 
         points_map = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
         ws = sh.worksheet("الأبطال")
         
-        current_data = ws.get_all_values()[1:]
-        scores = {row[0].lower(): int(row[1]) for row in current_data if len(row) >= 2}
+        # قراءة البيانات الحالية
+        current_data = ws.get_all_values()
+        scores = {}
+        if len(current_data) > 1:
+            for row in current_data[1:]:
+                if len(row) >= 2:
+                    scores[row[0].lower()] = int(row[1])
 
-        log_text = "🏆 نتائج السيرفر الحالي وتم إضافة الذهب التراكمي:\n"
-        for idx, mention in enumerate(parts[:10]):
-            user = mention.replace("@", "").lower()
+        log_text = "🏆 نتائج السيرفر وتم إضافة الذهب التراكمي:\n"
+        for idx, name in enumerate(parts[:10]):
+            user = name.replace("@", "").lower()
             pts = points_map[idx]
             scores[user] = scores.get(user, 0) + pts
             log_text += f"المركز {idx+1}: @{user} (+{pts} ذهب)\n"
 
+        # تحديث الورقة
         ws.clear()
         ws.append_row(["username", "points"])
         for user, pt in sorted(scores.items(), key=lambda x: x[1], reverse=True):
             ws.append_row([user, pt])
 
-        bot.reply_to(message, "✅ تم تحديث نقاط الأبطال تراكمياً بنجاح ونشرها!")
+        bot.reply_to(message, "✅ تم تحديث النقاط بنجاح.")
         bot.send_message(CHANNEL_ID, log_text)
     except Exception as e:
-        bot.reply_to(message, f"❌ حدث خطأ أثناء معالجة النتائج: {e}")
+        bot.reply_to(message, f"❌ خطأ: {e}")
+
 
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("حذف من"))
 def delete_from_list(message):
