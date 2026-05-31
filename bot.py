@@ -81,7 +81,16 @@ def register_player(message):
         if hour < 21 or (hour == 21 and minute <= 30): allowed = True
 
     if not allowed:
-        bot.reply_to(message, "❌ التسجيل مغلق حالياً. يفتح من الأربعاء 9:00 مساءً حتى الجمعة 9:30 مساءً.")
+        # رسالة رفض منظمة ومفصلة
+        rejection_msg = (
+            "❌ **التسجيل مغلق حالياً.**\n\n"
+            "تفتح أبواب التسجيل في الأوقات التالية:\n"
+            "• **الأربعاء:** بدءاً من الساعة 9:00 مساءً\n"
+            "• **الخميس:** طوال اليوم\n"
+            "• **الجمعة:** حتى الساعة 9:30 مساءً\n\n"
+            "يرجى المحاولة خلال هذه الفترة."
+        )
+        bot.reply_to(message, rejection_msg, parse_mode="Markdown")
         return
 
     ws = sh.worksheet("المسجلين")
@@ -90,6 +99,7 @@ def register_player(message):
         bot.reply_to(message, f"✅ تم تسجيلك بنجاح يا @{user} في قائمة السيرفر.")
     else:
         bot.reply_to(message, "⚠️ أنت مسجل بالفعل في القائمة.")
+
 
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("حماية"))
 def protect_player(message):
