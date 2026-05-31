@@ -58,9 +58,12 @@ def check_user_in_list(username, list_name):
 def is_moderator(username):
     return is_main_admin(username) or check_user_in_list(username, "المشرفين")
 
+# 1. أمر التسجيل (نسخة التجربة المفتوحة - تحفظ الاسم والـ ID)
 @bot.message_handler(func=lambda m: m.text == "تسجيل")
 def register_player(message):
     user = message.from_user.username
+    chat_id = message.from_user.id  # جلب الـ ID الرقمي (أهم خطوة)
+    
     if not user:
         bot.reply_to(message, "❌ يجب أن يكون لديك اسم مستخدم (Username) في التليجرام للتسجيل.")
         return
@@ -69,14 +72,77 @@ def register_player(message):
         bot.reply_to(message, "❌ أنت في قائمة المخربين ولا يمكنك التسجيل في السيرفر.")
         return
 
-    # --- تم إيقاف شرط الوقت هنا مؤقتاً لغرض التجربة ---
-
     ws = sh.worksheet("المسجلين")
-    if user.lower() not in [u.lower() for u in ws.col_values(1)]:
-        ws.append_row([user])
-        bot.reply_to(message, f"✅ تم تسجيلك بنجاح يا @{user} في قائمة السيرفر. (نسخة تجريبية)")
+    # قراءة العمود الأول الخاص بالأسماء للتأكد من عدم التكرار
+    usernames = [u.lower() for u in ws.col_values(1)]
+    
+    if user.lower() not in usernames:
+        # حفظ الاسم في العمود الأول، والـ ID في العمود الثاني
+        ws.append_row([user, str(chat_id)])
+        bot.reply_to(message, f"✅ تم تسجيلك بنجاح يا @{user} في قائمة السيرفر التجريبية.")
     else:
         bot.reply_to(message, "⚠️ أنت مسجل بالفعل في القائمة.")
+
+
+# 2. أمر عرض قائمة المسجلين المطور
+@bot.message_handler(func=lambda m: m.text == "عرض قائمة المسجلين")
+def view_registered(message):
+    try:
+        ws = sh.worksheet("المسجلين")
+        usernames = ws.col_values(1)  # جلب الأسماء من العمود الأول فقط
+        
+        if len(usernames) <= 1:
+            bot.reply_to(message, "📋 قائمة المسجلين فارغة حالياً.")
+            return
+        
+        text = "📋 **قائمة المسجلين:**\n\n"
+        for u in usernames[1:]:  # تخطي سطر العنوان الأول
+            if u.strip():
+                text += f"- @{u}\n"
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ خطأ في عرض القائمة: {e}")
+
+
+# 3. أمر إرسال كود السيرفر المطور بالـ ID
+@bot.message_handler(func=lambda m: m.text and m.text.startswith("كود السيرفر"))
+def send_server_code(message):
+    if not is_moderator(message.from_user.username): return
+    
+    try:
+        code_text = message.text.replace("كود السيرفر", "").strip()
+        if not code_text:
+            bot.reply_to(message, "⚠️ يرجى كتابة الكود بعد الأمر، مثال:\n`كود السيرفر XYZ123`")
+            return
+        
+        status_msg = bot.reply_to(message, "⏳ جاري بدء إرسال الكود للمسجلين في الخاص...")
+        
+        ws = sh.worksheet("المسجلين")
+        all_rows = ws.get_all_values()
+        
+        success_count = 0
+        
+        # المرور على جميع الأسطر لتوزيع الكود
+        for row in all_rows[1:]:  # تخطي سطر العنوان الأول
+            if len(row) >= 2:
+                username = row[0].strip()
+                user_chat_id = row[1].strip()
+                
+                if user_chat_id.isdigit():  # التأكد أن خانة الـ ID تحتوي على رقم
+                    try:
+                        msg_to_send = f"🎮 **أهلاً بك يا @{username}**\n\nإليك كود السيرفر الخاص بك:\n`{code_text}`\n\nبالتوفيق لأبطال نخبة العرب! ✨"
+                        bot.send_message(int(user_chat_id), msg_to_send, parse_mode="Markdown")
+                        success_count += 1
+                    except Exception as ex:
+                        # هذا الخطأ يحدث فقط إذا كان اللاعب لم يضغط Start في خاص البوت أو قام بحظر البوت
+                        print(f"تعذر الإرسال إلى {username}: {ex}")
+        
+        bot.edit_message_text(f"✅ تم الإرسال بنجاح إلى {success_count} لاعب من المسجلين (الذين قاموا بتفعيل البوت في الخاص).", 
+                              chat_id=message.chat.id, 
+                              message_id=status_msg.message_id)
+        
+    except Exception as e:
+        bot.reply_to(message, f"❌ خطأ تقني أثناء الإرسال: {e}")
 
 
 
