@@ -239,8 +239,10 @@ def view_list(message):
         
         text = f"📋 قائمة {list_name}:\n"
         for r in data:
-            if len(r) == 1: text += f"- @{r[0]}\n"
-            elif len(r) == 2: text += f"- @{r[0]} ({r[1]})\n"
+            # هنا يتم تنظيف الاسم من أي @ موجودة مسبقاً في الإكسل لمنع التكرار
+            clean_user = r[0].replace("@", "")
+            if len(r) == 1: text += f"- @{clean_user}\n"
+            elif len(r) == 2: text += f"- @{clean_user} ({r[1]})\n"
         bot.reply_to(message, text)
     except:
         bot.reply_to(message, "❌ اسم القائمة غير صحيح.")
