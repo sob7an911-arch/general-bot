@@ -195,16 +195,15 @@ def send_server_code(message):
 def add_results(message):
     if not is_moderator(message.from_user.username): return
     try:
-        # استخراج الأسماء فقط (استخدم split للفصل)
         parts = message.text.replace("اضافة نتائج", "").strip().split()
         if not parts:
-            bot.reply_to(message, "⚠️ يرجى كتابة أسماء اللاعبين بعد الأمر (مثال: اضافة نتائج user1 user2 ...)")
+            bot.reply_to(message, "⚠️ يرجى كتابة أسماء اللاعبين بعد الأمر.")
             return
 
         points_map = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
         ws = sh.worksheet("الأبطال")
         
-        # قراءة البيانات الحالية
+        # 1. تحديث النقاط التراكمية
         current_data = ws.get_all_values()
         scores = {}
         if len(current_data) > 1:
@@ -212,23 +211,35 @@ def add_results(message):
                 if len(row) >= 2:
                     scores[row[0].lower()] = int(row[1])
 
-        log_text = "🏆 نتائج السيرفر وتم إضافة الذهب التراكمي:\n"
+        # تجهيز نص نتائج السيرفر الحالي (الـ 10 الأوائل)
+        log_text = "🏆 نتائج السيرفر الحالي وتم إضافة الذهب التراكمي:\n"
         for idx, name in enumerate(parts[:10]):
             user = name.replace("@", "").lower()
             pts = points_map[idx]
             scores[user] = scores.get(user, 0) + pts
             log_text += f"المركز {idx+1}: @{user} (+{pts} ذهب)\n"
 
-        # تحديث الورقة
+        # حفظ البيانات الجديدة في الورقة
         ws.clear()
         ws.append_row(["username", "points"])
-        for user, pt in sorted(scores.items(), key=lambda x: x[1], reverse=True):
+        all_sorted = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        for user, pt in all_sorted:
             ws.append_row([user, pt])
 
-        bot.reply_to(message, "✅ تم تحديث النقاط بنجاح.")
+        # 2. إرسال نتائج السيرفر (كما في الصورة)
         bot.send_message(CHANNEL_ID, log_text)
+
+        # 3. إرسال قائمة التوب 30 التراكمية
+        top_30_text = "🏅 **قائمة أبطال السيرفر (أعلى 30 لاعباً):**\n\n"
+        for i, (user, pts) in enumerate(all_sorted[:30]):
+            top_30_text += f"{i+1}. @{user} ({pts} ذهب)\n"
+        
+        bot.send_message(CHANNEL_ID, top_30_text, parse_mode="Markdown")
+        bot.reply_to(message, "✅ تم تحديث النتائج ونشر القوائم بنجاح.")
+
     except Exception as e:
-        bot.reply_to(message, f"❌ خطأ: {e}")
+        bot.reply_to(message, f"❌ خطأ أثناء المعالجة: {e}")
+
 
 
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("حذف من"))
