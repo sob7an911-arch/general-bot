@@ -126,27 +126,25 @@ def protect_player(message):
     
     bot.reply_to(message, f"🛡️ تم تسجيل حمايتك يا @{user} لدولة: {country}")
 
-@bot.message_handler(func=lambda m: m.text and m.text.startswith("مشررف"))
-def add_mod(message):
-    if not is_main_admin(message.from_user.username): return
+@bot.message_handler(func=lambda m: m.text and m.text.startswith("أضف"))
+def add_to_list(message):
+    if not is_moderator(message.from_user.username):
+        bot.reply_to(message, "❌ ليس لديك صلاحية للإضافة.")
+        return
+    
     try:
-        target = message.text.split()[1].replace("@", "")
-        ws = sh.worksheet("المشرفين")
+        # الصيغة المتوقعة: أضف @user إلى قائمة [اسم القائمة]
+        # مثال: أضف @N1_FR30N إلى قائمة المشرفين
+        parts = message.text.split()
+        target = parts[1].replace("@", "")
+        list_name = parts[3]
+        
+        ws = sh.worksheet(list_name)
         ws.append_row([target])
-        bot.reply_to(message, f"✅ تم إضافة @{target} إلى قائمة المشرفين بنجاح.")
-    except:
-        bot.reply_to(message, "⚠️ الصيغة خاطئة، اكتب: مشررف @user")
+        bot.reply_to(message, f"✅ تم إضافة @{target} إلى قائمة {list_name} بنجاح.")
+    except Exception:
+        bot.reply_to(message, "⚠️ الصيغة غير صحيحة.\nاكتب الأمر بهذا الشكل:\nأضف @user إلى قائمة المشرفين")
 
-@bot.message_handler(func=lambda m: m.text and m.text.startswith("مخرب"))
-def add_griefer(message):
-    if not is_moderator(message.from_user.username): return
-    try:
-        target = message.text.split()[1].replace("@", "")
-        ws = sh.worksheet("المخربين")
-        ws.append_row([target])
-        bot.reply_to(message, f"🚫 تم إضافة @{target} إلى قائمة المخربين وتم منعه من التسجيل.")
-    except:
-        bot.reply_to(message, "⚠️ الصيغة خاطئة، اكتب: مخرب @user")
 
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("كود السيرفر"))
 def send_server_code(message):
