@@ -4,12 +4,12 @@ import time
 import threading
 from datetime import datetime, timezone, timedelta
 
-# --- بيانات الربط مع Google Sheets (النسخة المنظفة والآمنة) ---
+# --- بيانات الربط مع Google Sheets (تم تصحيح المفتاح وإعادة الحرف المفقود) ---
 CREDENTIALS_DICT = {
   "type": "service_account",
   "project_id": "rare-mechanic-466808-s2",
   "private_key_id": "52b5890bec4b761f97bec22f635c7bcbcf579713",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDo0Tbc5msNoXEN\nA10lOWFNYGki9xXYXBmhma68h/AIzFENKr8Mzx5JNBPaONAlB9dsnVRMFM/eMwlr\nPy+Hf2UFgB8eXrxIRy3JNl97K+cwm2C+RQXMqUSBYGOEyfsbskhSgicnsVMykGtV\nSthJdJ1/yUwi8fk4y4DSIQAeBqe9f2ncy51TEF92LAUpNArrz+9JIK+nFJFnF+tI\nP3TZVctQUf+dxpDv74WIrjsHAsq1xKqGvlo9N8O3B8LVANgA8UlDS802cNp2VUW3\nNu/6KW7iCwO/5KtZQln4T0uKMU4CCM4L+pLJmlvckHmaJiu7Fo7ewdw5pRpkc5Hc\nYQqjFLbFAgMBAAECggEAIpAOmkAtw94D87fcX96TGqLVsN5oFJDlsDcpuOzgXloA\nVj7eFoWJ61uxg55ngm6OjJoFYxgaJ8AhragZnfr5iNlW0OapYtFmZG0Hou/vFhQ\nxiZmjEHTvPYzh/7ZQ70VngQa7npVfNPyTzz3e34vtI0Me8Ka6krR0sAZ7Zs00z16\n1ZJBAz8iyXLSaozFcKz699CQDhkpBniGPp1qRsiDDdAIHsnCOosinEjLkxtYHVPh\nQhA/t5fSSnfDiez8cy7uJYo4LK0wSJCP4Z2Lgj74tTgl3Z+DNE+3uSAVy9gklboL\ngbxLS93tF7sA59jGJPY0mp7ofFmHxblQt3Kt6RctqQKBgQD6qDjsQr9TNc0sZJva\naALAm6pOYxharwYzqOJvYwAriZHirCJMdvebvLqty0nIeH24kDN3HoYtqxaGWwrP\nrtoFJuX3dtxASrCDFteasGeP0DwNV1DYuUHuRCFnZ6VT2qZpicOsbU0W+LoGN70G\nDm09/7IW6Xa3djrgYSD2LlErTQKBgQDtx6TWo0mHOGNtvTBu8UNhZnAWj3aYmQTu\nK8naMV5e5rKyDEQ0/i22JcVxYln4FbdxDbDQ0uL6QaT+8JpiEV2SGgh/y4eoVvHZ\nt644l+YrqPNiHHjUrOjxS8oyDD+lkBkFWVmV2NAYcAjFBclMrSigc4JigolAzaGY\niXSGNfDNWQKBgHaaVqTkSGd1E6onyN8lS/gbMBB7LzDplEOpa8tMyu3O4GqjDG+l\n8y+Ls8E8aaMj8Ej+YnvAw7ikNbpJJepzT9IUP8hCQ6FgNfkxO7+ELNyNqXyejjCe\nKCY3sp6dGkt9MDTL7PyPk2SFOHBsu1I8TVCCxp+0xGm21dEJ5HDYJawZAoGBANaC\nPBgSWPvvB+vxOCdt6h6NXmNL627A5OzEfiYkUYGF2AG+BS5VfAGN07B1TLr9RG9u\nLWxGQ9QGsoX3ox8DkYmDiNVZVLmuLiL+jOKrTk9m7KI/E1ax4rgEapV57VU8SQZF\nVAdWAG17bL3peW9961/MtPyPzKi0marVnlSRhvqJAoGBALIdA1I3/YAh9JMpzWqD\nSG8QQ6g/yEMcL1f0nzJSxOaTuX50mxYQu6x4/hK+869t4QDDFlR2OPpa25OvMJGp\nLn+j3bdxRB2sDbU0V+jXhP9OEC9ftzZ7lztmPAvWaMXwJwJNUvziCfI4uWpSoZCf\nSF0CSDFAwwRrl9bY2SDGjBHk\n-----END PRIVATE KEY-----\n",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDo0Tbc5msNoXEN\nA10lOWFNYGki9xXYXBmhma68h/AIzFENKr8Mzx5JNBPaONAlB9dsnVRMFM/eMwlr\nPy+Hf2UFgB8eXrxIRy3JNl97K+cwm2C+RQXMqUSBYGOEyfsbskhSgicnsVMykGtV\nSthJdJ1/yUwi8fk4y4DSIQAeBqe9f2ncy51TEF92LAUpNArrz+9JIK+nFJFnF+tI\nP3TZVctQUf+dxpDv74WIrjsHAsq1xKqGvlo9N8O3B8LVANgA8UlDS802cNp2VUW3\nNu/6KW7iCwO/5KtZQln4T0uKMU4CCM4L+pLJmlvckHmaJiu7Fo7ewdw5pRpkc5Hc\nYQqjFLbFAgMBAAECggEAIpAOmkAtw94D87fcX96TGqLVsN5oFJDlsDcpuOzgXloA\nrVj7eFoWJ61uxg55ngm6OjJoFYxgaJ8AhragZnfr5iNlW0OapYtFmZG0Hou/vFhQ\nxiZmjEHTvPYzh/7ZQ70VngQa7npVfNPyTzz3e34vtI0Me8Ka6krR0sAZ7Zs00z16\n1ZJBAz8iyXLSaozFcKz699CQDhkpBniGPp1qRsiDDdAIHsnCOosinEjLkxtYHVPh\nQhA/t5fSSnfDiez8cy7uJYo4LK0wSJCP4Z2Lgj74tTgl3Z+DNE+3uSAVy9gklboL\ngbxLS93tF7sA59jGJPY0mp7ofFmHxblQt3Kt6RctqQKBgQD6qDjsQr9TNc0sZJva\naALAm6pOYxharwYzqOJvYwAriZHirCJMdvebvLqty0nIeH24kDN3HoYtqxaGWwrP\nrtoFJuX3dtxASrCDFteasGeP0DwNV1DYuUHuRCFnZ6VT2qZpicOsbU0W+LoGN70G\nDm09/7IW6Xa3djrgYSD2LlErTQKBgQDtx6TWo0mHOGNtvTBu8UNhZnAWj3aYmQTu\nK8naMV5e5rKyDEQ0/i22JcVxYln4FbdxDbDQ0uL6QaT+8JpiEV2SGgh/y4eoVvHZ\nt644l+YrqPNiHHjUrOjxS8oyDD+lkBkFWVmV2NAYcAjFBclMrSigc4JigolAzaGY\niXSGNfDNWQKBgHaaVqTkSGd1E6onyN8lS/gbMBB7LzDplEOpa8tMyu3O4GqjDG+l\n8y+Ls8E8aaMj8Ej+YnvAw7ikNbpJJepzT9IUP8hCQ6FgNfkxO7+ELNyNqXyejjCe\nKCY3sp6dGkt9MDTL7PyPk2SFOHBsu1I8TVCCxp+0xGm21dEJ5HDYJawZAoGBANaC\nPBgSWPvvB+vxOCdt6h6NXmNL627A5OzEfiYkUYGF2AG+BS5VfAGN07B1TLr9RG9u\nLWxGQ9QGsoX3ox8DkYmDiNVZVLmuLiL+jOKrTk9m7KI/E1ax4rgEapV57VU8SQZF\nVAdWAG17bL3peW9961/MtPyPzKi0marVnlSRhvqJAoGBALIdA1I3/YAh9JMpzWqD\nSG8QQ6g/yEMcL1f0nzJSxOaTuX50mxYQu6x4/hK+869t4QDDFlR2OPpa25OvMJGp\nLn+j3bdxRB2sDbU0V+jXhP9OEC9ftzZ7lztmPAvWaMXwJwJNUvziCfI4uWpSoZCf\nSF0CSDFAwwRrl9bY2SDGjBHk\n-----END PRIVATE KEY-----\n",
   "client_email": "general-bot-service@rare-mechanic-466808-s2.iam.gserviceaccount.com",
   "token_uri": "https://oauth2.googleapis.com/token"
 }
@@ -51,22 +51,20 @@ def register_player(message):
         bot.reply_to(message, "❌ يجب أن يكون لديك اسم مستخدم (Username) في التليجرام للتسجيل.")
         return
     
-    # التحقق من قائمة المخربين
     if check_user_in_list(user, "المخربين"):
         bot.reply_to(message, "❌ أنت في قائمة المخربين ولا يمكنك التسجيل في السيرفر.")
         return
 
-    # التحقق من الوقت (بتوقيت السعودية)
     ksa = get_ksa_time()
     weekday = ksa.weekday()  # 2=الأربعاء, 3=الخميس, 4=الجمعة
     hour = ksa.hour
     minute = ksa.minute
 
     allowed = False
-    if weekday == 2 and hour >= 21: allowed = True  # الأربعاء بعد 9م
-    elif weekday == 3: allowed = True               # الخميس كامل
-    elif weekday == 4:                              # الجمعة
-        if hour < 21 or (hour == 21 and minute <= 30): allowed = True # حتى 9:30م
+    if weekday == 2 and hour >= 21: allowed = True
+    elif weekday == 3: allowed = True
+    elif weekday == 4:
+        if hour < 21 or (hour == 21 and minute <= 30): allowed = True
 
     if not allowed:
         bot.reply_to(message, "❌ التسجيل مغلق حالياً. يفتح من الأربعاء 9:00 مساءً حتى الجمعة 9:30 مساءً.")
@@ -85,12 +83,10 @@ def protect_player(message):
     user = message.from_user.username
     if not user: return
 
-    # يجب أن يكون مسجلاً أولاً
     if not check_user_in_list(user, "المسجلين"):
         bot.reply_to(message, "❌ يجب أن تكون مسجلاً أولاً في قائمة التسجيل لتتمكن من طلب الحماية.")
         return
 
-    # التحقق من الوقت (حتى الجمعة 10 مساءً)
     ksa = get_ksa_time()
     weekday = ksa.weekday()
     hour = ksa.hour
@@ -98,7 +94,7 @@ def protect_player(message):
     if weekday == 4 and hour >= 22:
         bot.reply_to(message, "❌ انتهى وقت طلب الحماية (يغلق الجمعة الساعة 10:00 مساءً).")
         return
-    elif weekday in [5, 6, 0, 1]: # السبت للأحد
+    elif weekday in [5, 6, 0, 1]: 
         bot.reply_to(message, "❌ طلب الحماية مغلق حالياً.")
         return
 
@@ -108,7 +104,6 @@ def protect_player(message):
         return
 
     ws = sh.worksheet("الحماية")
-    # إذا كان مسجل حماية مسبقاً نحدث الدولة، أو نضيفه
     users = [u.lower() for u in ws.col_values(1)]
     if user.lower() in users:
         row_idx = users.index(user.lower()) + 1
@@ -152,16 +147,15 @@ def send_server_code(message):
         return
 
     ws = sh.worksheet("المسجلين")
-    users = ws.col_values(1)[1:] # تخطي العناوين
+    users = ws.col_values(1)[1:] 
     success_count = 0
     
     bot.reply_to(message, f"🔄 جاري إرسال الكود إلى {len(users)} لاعب مسجل...")
     for u in users:
         try:
-            # ملحوظة: لن ينجح الإرسال إلا إذا كان اللاعب قد ضغط Start للبوت مسبقاً
             bot.send_message(u, f"🎮 كود سيرفر الجنرال الجديد هو: `{code}`", parse_mode="Markdown")
             success_count += 1
-            time.sleep(0.1) # لتفادي الحظر من تليجرام
+            time.sleep(0.1) 
         except:
             continue
     bot.reply_to(message, f"📊 تم إرسال الكود بنجاح إلى {success_count} لاعب من أصل {len(users)} (الذين فعلوا البوت خاص).")
@@ -171,7 +165,6 @@ def send_server_code(message):
 def add_results(message):
     if not is_moderator(message.from_user.username): return
     try:
-        # التنسيق: اضافة نتائج @u1 @u2 @u3 @u4 @u5 @u6 @u7 @u8 @u9 @u10
         parts = message.text.replace("اضافة نتائج", "").strip().split()
         if len(parts) < 1:
             bot.reply_to(message, "⚠️ يرجى ذكر أسماء الحسابات بالترتيب من الأول للعاشر متبوعة بمسافات.")
@@ -180,7 +173,6 @@ def add_results(message):
         points_map = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
         ws = sh.worksheet("الأبطال")
         
-        # قراءة البيانات الحالية للترتيب التراكمي
         current_data = ws.get_all_values()[1:]
         scores = {row[0].lower(): int(row[1]) for row in current_data if len(row) >= 2}
 
@@ -191,7 +183,6 @@ def add_results(message):
             scores[user] = scores.get(user, 0) + pts
             log_text += f"المركز {idx+1}: @{user} (+{pts} ذهب)\n"
 
-        # إعادة كتابة الجدول التراكمي المحدث
         ws.clear()
         ws.append_row(["username", "points"])
         for user, pt in sorted(scores.items(), key=lambda x: x[1], reverse=True):
@@ -207,17 +198,14 @@ def add_results(message):
 def delete_from_list(message):
     sender = message.from_user.username
     try:
-        # حزمة الأمر: حذف من [القائمة] @user
         parts = message.text.split()
         list_name = parts[2]
         target = parts[3].replace("@", "").lower()
 
-        # التحقق من صلاحية حذف المشرفين (للمدير العام فقط)
         if list_name == "المشرفين" and not is_main_admin(sender):
             bot.reply_to(message, "❌ صلاحية حذف المشرفين حكر على المدير العام فقط.")
             return
         
-        # لبقية القوائم يجب أن يكون مشرفاً أو المدير العام
         if not is_moderator(sender): return
 
         ws = sh.worksheet(list_name)
@@ -261,7 +249,6 @@ def auto_post_scheduler():
             minute = ksa.minute
             day_str = ksa.strftime("%Y-%m-%d")
 
-            # أ. الخميس الساعة 9 مساءً -> نشر قائمة المسجلين
             if weekday == 3 and hour == 21 and minute == 0 and posted_today != f"thurs_9_{day_str}":
                 ws = sh.worksheet("المسجلين")
                 users = ws.col_values(1)[1:]
@@ -269,7 +256,6 @@ def auto_post_scheduler():
                 bot.send_message(CHANNEL_ID, text)
                 posted_today = f"thurs_9_{day_str}"
 
-            # ب. الجمعة الساعة 8 مساءً -> نشر قائمة المسجلين
             if weekday == 4 and hour == 20 and minute == 0 and posted_today != f"fri_8_{day_str}":
                 ws = sh.worksheet("المسجلين")
                 users = ws.col_values(1)[1:]
@@ -277,7 +263,6 @@ def auto_post_scheduler():
                 bot.send_message(CHANNEL_ID, text)
                 posted_today = f"fri_8_{day_str}"
 
-            # ج. الجمعة الساعة 10 مساءً -> نشر قائمة الحماية وإغلاقها تلقائياً
             if weekday == 4 and hour == 22 and minute == 0 and posted_today != f"fri_10_{day_str}":
                 ws = sh.worksheet("الحماية")
                 data = ws.get_all_values()[1:]
@@ -286,7 +271,6 @@ def auto_post_scheduler():
                     if len(r) >= 2: text += f"- @{r[0]} -> دولة: {r[1]}\n"
                 bot.send_message(CHANNEL_ID, text)
                 
-                # تصفير قوائم السيرفر الحالي استعداداً للاسبوع القادم تلقائياً
                 sh.worksheet("المسجلين").clear()
                 sh.worksheet("المسجلين").append_row(["username"])
                 sh.worksheet("الحماية").clear()
@@ -297,10 +281,7 @@ def auto_post_scheduler():
         except Exception as e:
             print(f"خطأ في المجدل التلقائي: {e}")
         
-        time.sleep(30) # فحص كل نصف دقيقة
+        time.sleep(30) 
 
-# تشغيل المجدل التلقائي في خلفية السيرفر
 threading.Thread(target=auto_post_scheduler, daemon=True).start()
-
-# تشغيل البوت للأبد
 bot.infinity_polling()
