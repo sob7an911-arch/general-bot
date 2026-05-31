@@ -195,50 +195,59 @@ def send_server_code(message):
 def add_results(message):
     if not is_moderator(message.from_user.username): return
     try:
-        parts = message.text.replace("اضافة نتائج", "").strip().split()
+        # تنظيف المدخلات جيداً
+        raw_input = message.text.replace("اضافة نتائج", "").strip()
+        parts = raw_input.split()
         if not parts:
-            bot.reply_to(message, "⚠️ يرجى كتابة أسماء اللاعبين بعد الأمر.")
+            bot.reply_to(message, "⚠️ يرجى كتابة أسماء اللاعبين.")
             return
 
         points_map = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
         ws = sh.worksheet("الأبطال")
         
-        # 1. تحديث النقاط التراكمية
+        # قراءة البيانات الحالية وتخزينها في القاموس
         current_data = ws.get_all_values()
         scores = {}
-        if len(current_data) > 1:
-            for row in current_data[1:]:
-                if len(row) >= 2:
-                    scores[row[0].lower()] = int(row[1])
+        # نبدأ من الصف الثاني لتخطي العناوين
+        for row in current_data[1:]:
+            if len(row) >= 2:
+                # .strip() لإزالة أي فراغات مخفية و .lower() للتوحيد
+                user_name = row[0].strip().lower()
+                try:
+                    scores[user_name] = int(row[1])
+                except:
+                    scores[user_name] = 0
 
-        # تجهيز نص نتائج السيرفر الحالي (الـ 10 الأوائل)
+        # الجمع التراكمي
         log_text = "🏆 نتائج السيرفر الحالي وتم إضافة الذهب التراكمي:\n"
         for idx, name in enumerate(parts[:10]):
-            user = name.replace("@", "").lower()
+            user = name.replace("@", "").strip().lower() # تنظيف إضافي لاسم المستخدم
             pts = points_map[idx]
+            # الجمع بدقة
             scores[user] = scores.get(user, 0) + pts
             log_text += f"المركز {idx+1}: @{user} (+{pts} ذهب)\n"
 
-        # حفظ البيانات الجديدة في الورقة
+        # تحديث الملف بالكامل
         ws.clear()
         ws.append_row(["username", "points"])
+        # ترتيب القائمة من الأعلى للأقل
         all_sorted = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        
         for user, pt in all_sorted:
             ws.append_row([user, pt])
 
-        # 2. إرسال نتائج السيرفر (كما في الصورة)
+        # النشر في القناة
         bot.send_message(CHANNEL_ID, log_text)
 
-        # 3. إرسال قائمة التوب 30 التراكمية
         top_30_text = "🏅 **قائمة أبطال السيرفر (أعلى 30 لاعباً):**\n\n"
         for i, (user, pts) in enumerate(all_sorted[:30]):
             top_30_text += f"{i+1}. @{user} ({pts} ذهب)\n"
         
         bot.send_message(CHANNEL_ID, top_30_text, parse_mode="Markdown")
-        bot.reply_to(message, "✅ تم تحديث النتائج ونشر القوائم بنجاح.")
+        bot.reply_to(message, "✅ تم تحديث النتائج بنجاح.")
 
     except Exception as e:
-        bot.reply_to(message, f"❌ خطأ أثناء المعالجة: {e}")
+        bot.reply_to(message, f"❌ خطأ: {e}")
 
 
 
