@@ -67,6 +67,24 @@ def check_user_in_list(username, list_name):
 def is_moderator(username):
     return is_main_admin(username) or check_user_in_list(username, "المشرفين")
 
+# --- دالات التحكم برقم السيرفر التراكمي في ملف نصي ---
+def get_current_server_number():
+    file_name = "server_number.txt"
+    try:
+        with open(file_name, "r") as f:
+            return int(f.read().strip())
+    except:
+        with open(file_name, "w") as f:
+            f.write("111")
+        return 111
+
+def increment_server_number():
+    file_name = "server_number.txt"
+    num = get_current_server_number()
+    with open(file_name, "w") as f:
+        f.write(str(num + 1))
+    return num + 1
+
 # ==========================================
 # 1. أوامر التسجيل وعرض القوائم (الأساسية)
 # ==========================================
@@ -133,14 +151,6 @@ def send_server_code(message):
     except Exception as e:
         bot.reply_to(message, f"❌ خطأ: {e}")
 
-def get_and_increment_server_number():
-    file_name = "server_number.txt"
-    try:
-        with open(file_name, "r") as f: num = int(f.read().strip())
-    except: num = 111
-    with open(file_name, "w") as f: f.write(str(num + 1))
-    return num
-
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("اضافة نتائج"))
 def add_results(message):
     if not is_moderator(message.from_user.username): return
@@ -154,7 +164,8 @@ def add_results(message):
         ws, ws_backup = sh.worksheet("الأبطال"), sh.worksheet("نسخة احتياطية")
         scores = {row[0].strip().lower(): int(row[1]) for row in ws.get_all_values()[1:] if len(row) >= 2 and row[1].isdigit()}
 
-        server_num = get_and_increment_server_number()
+        # هنا يقرأ رقم السيرفر الحالي المعتمد للأسبوع الحالي دون زيادته قبل الأوان
+        server_num = get_current_server_number()
         log_text = f"🏆 **ترتيب الفائزين في سيرفر رقم {server_num}:**\n"
         
         for idx, name in enumerate(parts[:10]):
@@ -235,7 +246,7 @@ def delete_from_list(message):
     except: pass
 
 # ==========================================
-# 4. 🚨 نظام العقوبات (الحظر والكتم التصاعدي)
+# 4. نظام العقوبات (الحظر والكتم التصاعدي)
 # ==========================================
 @bot.message_handler(func=lambda m: m.text in ["كتم", "حظر"] and m.reply_to_message)
 def punish_user(message):
@@ -305,30 +316,129 @@ def check_my_msgs(message):
     bot.reply_to(message, f"📊 عدد مشاركاتك الكلية هو: {sheet_total + mem_count} مشاركة.")
 
 # ==========================================
-# 6. المجدل التلقائي (تحديث النتائج اليومية)
+# 6. المجدل التلقائي للأوامر والرسائل الدورية
 # ==========================================
 def auto_post_scheduler():
     posted_today_events = ""
     posted_today_msgs = ""
+    posted_today_announcement = ""  # تتبع رسالة الإعلان اليومية لمنع التكرار
+    
     while True:
         try:
             ksa = get_ksa_time()
             weekday, hour, minute, day_str = ksa.weekday(), ksa.hour, ksa.minute, ksa.strftime("%Y-%m-%d")
 
-            # مواعيد التسجيل والحماية
+            # --- 1. إعلان انطلاق السيرفر التلقائي (الأربعاء، الخميس، الجمعة الساعة 8:00 مساءً) ---
+            if weekday in [2, 3, 4] and hour == 20 and minute == 0 and posted_today_announcement != day_str:
+                # إذا كان اليوم هو الأربعاء (بداية الأسبوع البرمجي)، نزيد رقم السيرفر تلقائياً بمقدار 1
+                if weekday == 2:
+                    server_num = increment_server_number()
+                else:
+                    server_num = get_current_server_number()
+
+                announcement_text = f"""🚨🔥 ســيــرفــر الأبــطــال يــنــطــلــق اللــيــلــة رقم {server_num} 🔥🚨
+
+🏆 هل أنت مستعد لخوض التحدي؟
+⚔️ هل تمتلك المهارة والقدرة على الوصول إلى القمة؟
+
+يسر إدارة نخبة العرب الإعلان عن انطلاق سيرفر الأبطال الليلة عند:
+
+🕘 الساعة 9:00 مساءً بتوقيت مكة المكرمة
+
+═══════════════
+
+📝 طريقة التسجيل:
+
+1️⃣ الدخول إلى مدير نخبة العرب الإلكتروني:
+@NOKHBAT_ALARAB_bot
+
+2️⃣ إرسال الأمر التالي في الخاص لمرة واحدة فقط:
+📩 /start
+
+3️⃣ بعد ذلك أرسل:
+📩 تسجيل
+
+✅ ستصلك رسالة تؤكد نجاح عملية التسجيل.
+
+═══════════════
+
+🔐 بعد التسجيل سيقوم مدير نخبة العرب الإلكتروني بإرسال كود السيرفر إليك برسالة خاصة عند الساعة التاسعة مساء الجمعةبتوقيتمكةالمكرمة.
+
+بعد استلام الكود أرسل لمدير نخبة العرب الإلكتروني:
+
+🛡️ حماية + اسم دولتك
+
+مثال:
+🛡️ حماية السعودية
+
+ليتم إدراجك ضمن قائمة الحماية.
+
+⏰ تنبيه هام:
+تُغلق قائمة الحماية عند الساعة 10:00 مساءً بشكل إلكتروني ولن يتم قبول أي طلبات بعدها.
+
+═══════════════
+
+🥇 جوائز القطع الذهبية 🥇
+
+الفائزون في السيرفر يحصلون على قطع ذهبية تضاف إلى رصيدهم بشكل دائم وتراكمي:
+
+🥇 المركز الأول: 100 قطعة ذهبية
+🥈 المركز الثاني: 90 قطعة ذهبية
+🥉 المركز الثالث: 80 قطعة ذهبية
+
+🏅 المركز الرابع: 70
+🏅 المركز الخامس: 60
+🏅 المركز السادس: 50
+🏅 المركز السابع: 40
+🏅 المركز الثامن: 30
+🏅 المركز التاسع: 20
+🏅 المركز العاشر: 10
+
+💰 تبقى القطع الذهبية محفوظة في رصيدك وتزداد مع كل سيرفر تشارك فيه وتحقق مركزاً متقدماً.
+
+═══════════════
+
+⚔️ أنت متواجد مع الأبطال...
+👑 معنا تبدأ رحلة المنافسة...
+🏆 السيرفر يكتب المجد لمن يستحقه...
+
+نتمنى لجميع المشاركين التوفيق والنجاح.
+
+🔥 أهلاً بكم في سيرفر الأبطال 🔥
+
+⚔️🏆👑🔥🚀💰🥇🥈🥉🎖️⚔️🏆👑🔥🚀💰🥇🥈🥉🎖️
+
+ملاحظة: يُنصح بالتسجيل مبكراً لتجنب ضغط التسجيلات قبل انطلاق السيرفر. 🚀
+يبدأ التسجيل من مساء الأربعاء حتى مساء الجمعة ويغلق التسجيل بعد ذلك."""
+
+                bot.send_message(CHANNEL_ID, announcement_text)
+                posted_today_announcement = day_str
+
+            # --- 2. مواعيد التسجيل (الخميس 9:00 مساءً) ---
             if weekday == 3 and hour == 21 and minute == 0 and posted_today_events != f"thurs_{day_str}":
                 ws = sh.worksheet("المسجلين")
                 bot.send_message(CHANNEL_ID, "📢 قائمة المسجلين الحالية:\n" + "\n".join([f"- @{u}" for u in ws.col_values(1)[1:]]))
                 posted_today_events = f"thurs_{day_str}"
 
+            # --- 3. نشر قائمة الحماية النهائية وإغلاقها تلقائياً (الجمعة 10:00 مساءً) ---
             if weekday == 4 and hour == 22 and minute == 0 and posted_today_events != f"fri_{day_str}":
                 ws = sh.worksheet("الحماية")
-                bot.send_message(CHANNEL_ID, "🛡️ قائمة الحماية (الجمعة 10م):\n" + "\n".join([f"- @{r[0]} -> {r[1]}" for r in ws.get_all_values()[1:] if len(r) >= 2]))
+                all_rows = ws.get_all_values()
+                protection_lines = [f"- @{r[0]} -> {r[1]}" for r in all_rows[1:] if len(r) >= 2 and r[0].strip()]
+                
+                if protection_lines:
+                    protection_text = "🛡️ **قائمة الحماية النهائية لسيرفر الأبطال (مغلقة إلكترونياً):**\n\n" + "\n".join(protection_lines)
+                else:
+                    protection_text = "🛡️ **قائمة الحماية النهائية لسيرفر الأبطال:**\n\n📋 لم يتم تسجيل أي طلبات حماية لهذا الأسبوع."
+
+                bot.send_message(CHANNEL_ID, protection_text)
+                
+                # تصفير القوائم في جوجل شيت لتجهيزها للأسبوع المقبل تلقائياً
                 sh.worksheet("المسجلين").clear(); sh.worksheet("المسجلين").append_row(["username", "chat_id"])
                 sh.worksheet("الحماية").clear(); sh.worksheet("الحماية").append_row(["username", "country"])
                 posted_today_events = f"fri_{day_str}"
 
-            # موعد نشر قائمة التفاعل اليومية (كل يوم الساعة 20:00)
+            # --- 4. موعد نشر قائمة التفاعل اليومية والأسبوعية (كل يوم الساعة 8:00 مساءً) ---
             if hour == 20 and minute == 0 and posted_today_msgs != f"msgs_{day_str}":
                 try: ws = sh.worksheet("المشاركات")
                 except: continue
@@ -336,7 +446,6 @@ def auto_post_scheduler():
                 data = ws.get_all_values()
                 sheet_dict = {str(r[0]): {"username": r[1], "total": int(r[2]) if len(r)>2 else 0, "daily": int(r[3]) if len(r)>3 else 0} for r in data[1:]}
 
-                # دمج الذاكرة مع الشيت
                 for uid, mem in message_counts.items():
                     if uid in sheet_dict:
                         sheet_dict[uid]["daily"] += mem["daily"]
@@ -354,7 +463,6 @@ def auto_post_scheduler():
                 if total_sorted:
                     bot.send_message(CHANNEL_ID, "📈 **أعلى 50 عضو مشاركة (تراكمي):**\n\n" + "\n".join([f"{i+1}. @{u['username']} ({u['total']} رسالة)" for i, u in enumerate(total_sorted) if u["total"] > 0]), parse_mode="Markdown")
 
-                # تصفير العداد اليومي وحفظه
                 new_sheet_data = [["user_id", "username", "total_msgs", "daily_msgs"]] + [[d["uid"], d["username"], str(d["total"]), "0"] for d in user_list]
                 ws.clear()
                 ws.update(new_sheet_data)
@@ -367,7 +475,7 @@ def auto_post_scheduler():
 threading.Thread(target=auto_post_scheduler, daemon=True).start()
 
 # ==========================================
-# 🛡️ 7. جدار الحماية، التحيات، وعداد الرسائل المخفي
+# 7. جدار الحماية، التحيات، وعداد الرسائل المخفي
 # ==========================================
 @bot.message_handler(func=lambda m: True)
 def count_and_greet(message):
@@ -378,7 +486,7 @@ def count_and_greet(message):
     if uid not in message_counts: message_counts[uid] = {"username": uname, "daily": 0}
     message_counts[uid]["daily"] += 1
 
-    # 2. الرد على التحيات الأساسية (ويظل يتجاهل أي إعلانات أخرى)
+    # 2. الرد على التحيات الأساسية
     text = message.text.strip() if message.text else ""
     if text in ["السلام عليكم", "سلام عليكم", "السلام عليكم ورحمة الله وبركاته"]:
         bot.reply_to(message, "وعليكم السلام ورحمة الله وبركاته 🌹")
