@@ -20,7 +20,6 @@ class DummyHandler(BaseHTTPRequestHandler):
         self.send_header('Content-type', 'text/html')
         self.end_headers()
 
-
 def run_dummy_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), DummyHandler)
@@ -47,7 +46,12 @@ bot = telebot.TeleBot("8606943008:AAFx25Asp08gQVdYGc0D-qj9FVGyD_uMsjM")
 MAIN_ADMIN = "ab0oturki"  
 CHANNEL_ID = "@abo_turky_genaral"  
 
-# --- الذاكرة المؤقتة لعداد الرسائل (لتخفيف الضغط على جوجل شيت) ---
+# الروابط المخصصة لنشر البيانات وتعديل الرسائل المثبتة
+LINK_RESULTS_ID = 1462648
+LINK_INTERACTION_ID = 1
+LINK_PROTECTION_CHAMPIONS_ID = 1462652
+
+# الذاكرة المؤقتة لعداد الرسائل
 message_counts = {}
 
 def get_ksa_time():
@@ -67,6 +71,18 @@ def check_user_in_list(username, list_name):
 def is_moderator(username):
     return is_main_admin(username) or check_user_in_list(username, "المشرفين")
 
+# --- إدارة حالة فتح وإغلاق قائمة الحماية عبر ملف نصي متقلب لضمان الاستقرار في ريندر ---
+def is_protection_open():
+    try:
+        with open("protection_status.txt", "r") as f:
+            return f.read().strip() == "True"
+    except:
+        return False
+
+def set_protection_status(status):
+    with open("protection_status.txt", "w") as f:
+        f.write("True" if status else "False")
+
 # --- دالات التحكم برقم السيرفر التراكمي في ملف نصي ---
 def get_current_server_number():
     file_name = "server_number.txt"
@@ -84,6 +100,52 @@ def increment_server_number():
     with open(file_name, "w") as f:
         f.write(str(num + 1))
     return num + 1
+
+# --- دالة النشر الموحد والذكي على روابط القنوات المحددة ---
+def publish_to_link(message_id, text):
+    try:
+        bot.edit_message_text(text, chat_id=CHANNEL_ID, message_id=message_id, parse_mode="Markdown")
+    except Exception as e:
+        # في حال عدم وجود الرسالة أو تعذر تعديلها، يتم النشر كرسالة جديدة كخيار احتياطي لضمان عدم تعطل النظام
+        try:
+            bot.send_message(CHANNEL_ID, f"📌 **تحديث تلقائي للرابط ({message_id}):**\n\n{text}", parse_mode="Markdown")
+        except:
+            print(f"فشل النشر التلقائي للرابط {message_id}")
+
+# --- دالة تحديث رابط الحماية والأبطال المشترك المخصص ---
+def update_protection_and_champions_link():
+    try:
+        # 1. جلب بيانات الحماية
+        ws_prot = sh.worksheet("الحماية")
+        prot_rows = ws_prot.get_all_values()
+        protection_lines = [f"- @{r[0]} -> {r[1]}" for r in prot_rows[1:] if len(r) >= 2 and r[0].strip()]
+        
+        status_str = "🔓 (مفتوحة حالياً)" if is_protection_open() else "🔒 (مغلقة إلكترونياً)"
+        prot_text = f"🛡️ **قائمة الحماية النهائية {status_str}:**\n\n"
+        if protection_lines:
+            prot_text += "\n".join(protection_lines)
+        else:
+            prot_text += "📋 لا توجد طلبات حماية مسجلة حالياً."
+
+        # 2. جلب بيانات الأبطال
+        ws_champ = sh.worksheet("الأبطال")
+        champ_rows = ws_champ.get_all_values()[1:]
+        scores = []
+        for r in champ_rows:
+            if len(r) >= 2 and r[1].isdigit():
+                scores.append((r[0].strip(), int(r[1])))
+        sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)
+        
+        champ_text = "🏅 **ترتيب أبطال نخبة العرب (الذهب التراكمي):**\n\n"
+        if sorted_scores:
+            champ_text += "\n".join([f"{i+1}. @{u} ({p} ذهب)" for i, (u, p) in enumerate(sorted_scores[:30])])
+        else:
+            champ_text += "📋 القائمة فارغة حالياً."
+
+        combined_text = f"{prot_text}\n\n====================\n\n{champ_text}"
+        publish_to_link(LINK_PROTECTION_CHAMPIONS_ID, combined_text)
+    except Exception as e:
+        print(f"خطأ أثناء تحديث الرابط المشترك: {e}")
 
 # ==========================================
 # 1. أوامر التسجيل وعرض القوائم (الأساسية)
@@ -108,6 +170,10 @@ def register_player(message):
 
 @bot.message_handler(func=lambda m: m.text == "عرض قائمة المسجلين")
 def view_registered(message):
+    # بناءً على طلبك: "لا يمكن عرض القوائم" للعامة، نتيحها للمشرفين فقط
+    if not is_moderator(message.from_user.username):
+        bot.reply_to(message, "❌ عذراً، لا يمكن عرض القوائم علناً.")
+        return
     try:
         ws = sh.worksheet("المسجلين")
         usernames = ws.col_values(1)
@@ -135,7 +201,7 @@ def send_server_code(message):
             bot.reply_to(message, "⚠️ يرجى كتابة الكود بعد الأمر، مثال:\n`كود السيرفر XYZ123`")
             return
         
-        status_msg = bot.reply_to(message, "⏳ جاري الإرسال في الخاص...")
+        status_msg = bot.reply_to(message, "⏳ جاري إرسال الكود للمسجلين وتفعيل قائمة الحماية...")
         ws = sh.worksheet("المسجلين")
         all_rows = ws.get_all_values()
         success_count = 0
@@ -143,11 +209,16 @@ def send_server_code(message):
         for row in all_rows[1:]:
             if len(row) >= 2 and row[1].strip().isdigit():
                 try:
-                    bot.send_message(int(row[1].strip()), f"🎮 **أهلاً بك يا @{row[0].strip()}**\n\nإليك كود السيرفر:\n`{code_text}`\n\nبالتوفيق لأبطال نخبة العرب! ✨", parse_mode="Markdown")
+                    bot.send_message(int(row[1].strip()), f"🎮 **أهلاً بك يا @{row[0].strip()}**\n\nإليك كود السيرفر المعتمد:\n`{code_text}`\n\n🛡️ يمكنك الآن تفعيل الحماية عن طريق إرسال الأمر بالصيغة التالية:\nحماية اسم دولتك", parse_mode="Markdown")
                     success_count += 1
                     time.sleep(0.1)
                 except: pass
-        bot.edit_message_text(f"✅ تم الإرسال بنجاح إلى {success_count} لاعب.", chat_id=message.chat.id, message_id=status_msg.message_id)
+        
+        # تفعيل وتفتيح قائمة الحماية رسمياً بعد إرسال الكود مباشرة
+        set_protection_status(True)
+        update_protection_and_champions_link()
+        
+        bot.edit_message_text(f"✅ تم إرسال الكود بنجاح إلى {success_count} لاعب.\n🔓 تم تفعيل واستقبال طلبات قائمة الحماية الآن بنجاح!", chat_id=message.chat.id, message_id=status_msg.message_id)
     except Exception as e:
         bot.reply_to(message, f"❌ خطأ: {e}")
 
@@ -164,15 +235,14 @@ def add_results(message):
         ws, ws_backup = sh.worksheet("الأبطال"), sh.worksheet("نسخة احتياطية")
         scores = {row[0].strip().lower(): int(row[1]) for row in ws.get_all_values()[1:] if len(row) >= 2 and row[1].isdigit()}
 
-        # هنا يقرأ رقم السيرفر الحالي المعتمد للأسبوع الحالي دون زيادته قبل الأوان
         server_num = get_current_server_number()
-        log_text = f"🏆 **ترتيب الفائزين في سيرفر رقم {server_num}:**\n"
+        log_text = f"🏆 **ترتيب الفائزين في سيرفر رقم {server_num}:**\n\n"
         
         for idx, name in enumerate(parts[:10]):
             user = name.replace("@", "").strip().lower()
             pts = points_map[idx]
             scores[user] = scores.get(user, 0) + pts
-            log_text += f"المركز {idx+1}: @{user} (+{pts} ذهب)\n"
+            log_text += f"🥇 المركز {idx+1}: @{user} (+{pts} ذهب)\n"
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         data_to_write = [["username", "points"]] + [[u, p] for u, p in sorted_scores]
@@ -180,43 +250,52 @@ def add_results(message):
         ws.clear(); ws.update(data_to_write)
         ws_backup.clear(); ws_backup.update(data_to_write)
 
-        bot.send_message(CHANNEL_ID, log_text, parse_mode="Markdown")
-        top_30_text = "🏅 **ترتيب أبطال نخبة العرب:**\n\n" + "\n".join([f"{i+1}. @{u} ({p} ذهب)" for i, (u, p) in enumerate(sorted_scores[:30])])
-        bot.send_message(CHANNEL_ID, top_30_text, parse_mode="Markdown")
-        bot.reply_to(message, f"✅ تم النشر بنجاح وحفظ نسخة احتياطية.")
+        # النشر على الرابط المخصص للنتائج 1462648
+        top_30_text = "\n🏅 **أعلى 30 بطل في الترتيب العام:**\n" + "\n".join([f"{i+1}. @{u} ({p} ذهب)" for i, (u, p) in enumerate(sorted_scores[:30])])
+        publish_to_link(LINK_RESULTS_ID, log_text + "\n" + top_30_text)
+        
+        # تحديث قائمة الأبطال المدمجة في رابط الحماية والأبطال المشترك
+        update_protection_and_champions_link()
+        bot.reply_to(message, "✅ تم النشر بنجاح وتحديث الروابط المعتمدة.")
     except Exception as e: bot.reply_to(message, f"❌ خطأ: {e}")
 
 # ==========================================
-# 3. أوامر الإدارة (الحماية، الإضافة، الحذف)
+# 3. نظام الإدارة (الحماية وأمر الحذف الذكي)
 # ==========================================
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("حماية"))
 def protect_player(message):
     user = message.from_user.username
     if not user: return
+    
+    # التحقق مما إذا كانت القائمة قد فُتحت بعد كود السيرفر
+    if not is_protection_open():
+        bot.reply_to(message, "❌ قائمة الحماية مغلقة حالياً؛ لا يمكن تفعيلها إلا بعد إرسال كود السيرفر للمسجلين.")
+        return
+
     try:
         ws_reg = sh.worksheet("المسجلين")
         if user.lower() not in [u.lower() for u in ws_reg.col_values(1)]:
-            bot.reply_to(message, "❌ يجب أن تكون مسجلاً أولاً.")
+            bot.reply_to(message, "❌ يجب أن تكون مسجلاً في السيرفر أولاً لتتمكن من طلب الحماية.")
             return
     except: return
 
     ksa = get_ksa_time()
     if ksa.weekday() == 4 and ksa.hour >= 22:
-        bot.reply_to(message, "❌ انتهى وقت طلب الحماية (الجمعة 10 م).")
-        return
-    elif ksa.weekday() in [5, 6, 0, 1]: 
-        bot.reply_to(message, "❌ طلب الحماية مغلق حالياً.")
+        bot.reply_to(message, "❌ انتهى وقت طلب الحماية المحدد (الجمعة 10:00 مساءً).")
         return
 
     country = message.text.replace("حماية", "").strip()
-    if not country: return bot.reply_to(message, "⚠️ اكتب اسم الدولة بعد حماية.")
+    if not country: return bot.reply_to(message, "⚠️ يرجى كتابة اسم الدولة بعد كلمة حماية. مثال: `حماية السعودية`")
 
     try:
         ws = sh.worksheet("الحماية")
         users = [u.lower() for u in ws.col_values(1)]
-        if user.lower() in users: ws.update_cell(users.index(user.lower()) + 1, 2, country)
-        else: ws.append_row([user, country])
-        bot.reply_to(message, f"🛡️ تم تسجيل الحماية لـ {country}")
+        if user.lower() in users: 
+            ws.update_cell(users.index(user.lower()) + 1, 2, country)
+        else: 
+            ws.append_row([user, country])
+        bot.reply_to(message, f"🛡️ تم تسجيل وتفعيل الحماية لك بنجاح لدولة: {country}")
+        update_protection_and_champions_link()
     except: pass
 
 @bot.message_handler(func=lambda m: m.text and m.text.startswith("أضف"))
@@ -225,25 +304,74 @@ def add_to_list(message):
     try:
         parts = message.text.split()
         target, list_name = parts[1].replace("@", ""), parts[4]
+        
+        # حماية تعديل القوائم الأخرى عدا المسجلين والحماية والمخربين ليكون لك وحدك
+        if list_name not in ["المسجلين", "الحماية", "المخربين"] and not is_main_admin(message.from_user.username):
+            bot.reply_to(message, "❌ لا تملك صلاحية تعديل هذه القائمة، التعديل متاح للمدير العام فقط.")
+            return
+
         ws = sh.worksheet(list_name)
         ws.append_row([target, "0"] if list_name == "المسجلين" else [target])
         bot.reply_to(message, f"✅ تمت الإضافة إلى {list_name}.")
+        if list_name in ["الحماية", "الأبطال"]: update_protection_and_champions_link()
     except Exception as e: bot.reply_to(message, f"⚠️ خطأ: {e}")
 
-@bot.message_handler(func=lambda m: m.text and m.text.startswith("حذف من"))
-def delete_from_list(message):
+# الأمر الكامل والذكي للحذف بناء على طلبك الدقيق ليعمل للمشرفين والمدير العام في القوائم الثلاث وللمدير فقط في البقية
+@bot.message_handler(func=lambda m: m.text and m.text.startswith("حذف"))
+def delete_player_from_any_list(message):
     sender = message.from_user.username
+    if not is_moderator(sender):
+        bot.reply_to(message, "❌ لا تملك صلاحية الإشراف لتنفيذ هذا الأمر.")
+        return
+    
+    text = message.text.strip()
+    supported_lists = ["المسجلين", "الحماية", "المخربين", "المشرفين", "الأبطال", "المشاركات"]
+    target_list = None
+    
+    for l in supported_lists:
+        if l in text:
+            target_list = l
+            break
+            
+    if not target_list:
+        bot.reply_to(message, "⚠️ لم يتم التعرف على اسم القائمة بشكل صحيح. مثال: `حذف اسم اللاعب @username من قائمة المسجلين`")
+        return
+
+    # بقية القوائم لا يمكن تعديلها إلا أنت (المدير العام) فقط
+    if target_list not in ["المسجلين", "الحماية", "المخربين"]:
+        if not is_main_admin(sender):
+            bot.reply_to(message, "❌ عذراً، لا يمكن تعديل أو حذف الأسماء من هذه القائمة إلا للمدير العام فقط.")
+            return
+
+    # استخراج اسم المستخدم الذكي المقترن بـ @ أو دونه
+    words = text.split()
+    target_user = None
+    for w in words:
+        if w.startswith("@"):
+            target_user = w.replace("@", "").strip().lower()
+            break
+    if not target_user:
+        clean_text = text.replace("حذف", "").replace("اسم", "").replace("اللاعب", "").replace("من", "").replace("قائمة", "").replace(target_list, "").strip()
+        if clean_text:
+            target_user = clean_text.split()[0].replace("@", "").strip().lower()
+
+    if not target_user:
+        bot.reply_to(message, "⚠️ يرجى تحديد اسم اللاعب المراد حذفه في نص الأمر.")
+        return
+
     try:
-        parts = message.text.split()
-        list_name, target = parts[2], parts[3].replace("@", "").lower()
-        if list_name == "المشرفين" and not is_main_admin(sender): return bot.reply_to(message, "❌ للمدير العام فقط.")
-        if not is_moderator(sender): return
-        ws = sh.worksheet(list_name)
-        users = [u.lower() for u in ws.col_values(1)]
-        if target in users:
-            ws.delete_rows(users.index(target) + 1)
-            bot.reply_to(message, f"🗑️ تم الحذف من {list_name}.")
-    except: pass
+        ws = sh.worksheet(target_list)
+        users = [u.lower().strip() for u in ws.col_values(1)]
+        if target_user in users:
+            idx = users.index(target_user) + 1
+            ws.delete_rows(idx)
+            bot.reply_to(message, f"🗑️ تم حذف اللاعب @{target_user} من قائمة {target_list} بنجاح.")
+            if target_list in ["الحماية", "الأبطال"]:
+                update_protection_and_champions_link()
+        else:
+            bot.reply_to(message, f"⚠️ اسم اللاعب @{target_user} غير موجود في قائمة {target_list}.")
+    except Exception as e:
+        bot.reply_to(message, f"❌ حدث خطأ أثناء الحذف: {e}")
 
 # ==========================================
 # 4. نظام العقوبات (الحظر والكتم التصاعدي)
@@ -279,9 +407,6 @@ def punish_user(message):
         else: ws.append_row([target_id, target_user, ban_c, mute_c])
         
         bot.reply_to(message, f"⛔ تم حظر @{target_user} لمدة {duration_hours} ساعة. (الحظر رقم {ban_c})")
-        try: bot.send_message(target.id, f"🚫 تم حظرك من المجموعة لمدة {duration_hours} ساعة بسبب مخالفتك.")
-        except: pass
-
     elif action == "كتم":
         mute_c += 1
         duration_hours = mute_c
@@ -292,8 +417,6 @@ def punish_user(message):
         else: ws.append_row([target_id, target_user, ban_c, mute_c])
         
         bot.reply_to(message, f"🔇 تم كتم @{target_user} لمدة {duration_hours} ساعة. (الكتم رقم {mute_c})")
-        try: bot.send_message(target.id, f"🔇 تم كتمك في المجموعة لمدة {duration_hours} ساعة بسبب مخالفتك.")
-        except: pass
 
 # ==========================================
 # 5. الترحيب ومعرفة عدد المشاركات
@@ -316,12 +439,12 @@ def check_my_msgs(message):
     bot.reply_to(message, f"📊 عدد مشاركاتك الكلية هو: {sheet_total + mem_count} مشاركة.")
 
 # ==========================================
-# 6. المجدل التلقائي للأوامر والرسائل الدورية
+# 6. المجدل التلقائي للأوامر والرسائل الدورية والروابط
 # ==========================================
 def auto_post_scheduler():
     posted_today_events = ""
     posted_today_msgs = ""
-    posted_today_announcement = ""  # تتبع رسالة الإعلان اليومية لمنع التكرار
+    posted_today_announcement = ""
     
     while True:
         try:
@@ -330,7 +453,6 @@ def auto_post_scheduler():
 
             # --- 1. إعلان انطلاق السيرفر التلقائي (الأربعاء، الخميس، الجمعة الساعة 8:00 مساءً) ---
             if weekday in [2, 3, 4] and hour == 20 and minute == 0 and posted_today_announcement != day_str:
-                # إذا كان اليوم هو الأربعاء (بداية الأسبوع البرمجي)، نزيد رقم السيرفر تلقائياً بمقدار 1
                 if weekday == 2:
                     server_num = increment_server_number()
                 else:
@@ -342,103 +464,45 @@ def auto_post_scheduler():
 ⚔️ هل تمتلك المهارة والقدرة على الوصول إلى القمة؟
 
 يسر إدارة نخبة العرب الإعلان عن انطلاق سيرفر الأبطال الليلة عند:
-
-🕘 الساعة 9:00 مساءً بتوقيت مكة المكرمة
-
-═══════════════
+ Rhine 🕘 الساعة 9:00 مساءً بتوقيت مكة المكرمة
 
 📝 طريقة التسجيل:
-
-1️⃣ الدخول إلى مدير نخبة العرب الإلكتروني:
-@NOKHBAT_ALARAB_bot
-
-2️⃣ إرسال الأمر التالي في الخاص لمرة واحدة فقط:
-📩 /start
-
-3️⃣ بعد ذلك أرسل:
-📩 تسجيل
+1️⃣ الدخول إلى مدير نخبة العرب الإلكتروني: @NOKHBAT_ALARAB_bot
+2️⃣ إرسال الأمر التالي في الخاص لمرة واحدة فقط: /start
+3️⃣ بعد ذلك أرسل: تسجيل
 
 ✅ ستصلك رسالة تؤكد نجاح عملية التسجيل.
 
-═══════════════
+🔐 بعد التسجيل سيقوم مدير نخبة العرب الإلكتروني بإرسال كود السيرفر إليك برسالة خاصة عند الساعة التاسعة مساء الجمعة بتوقيت مكة المكرمة.
 
-🔐 بعد التسجيل سيقوم مدير نخبة العرب الإلكتروني بإرسال كود السيرفر إليك برسالة خاصة عند الساعة التاسعة مساء الجمعةبتوقيتمكةالمكرمة.
-
-بعد استلام الكود أرسل لمدير نخبة العرب الإلكتروني:
-
-🛡️ حماية + اسم دولتك
-
-مثال:
-🛡️ حماية السعودية
-
-ليتم إدراجك ضمن قائمة الحماية.
+بعد استلام الكود أرسل لمدير نخبة العرب الإلكتروني لتفعيل الحماية:
+🛡️ حماية + اسم دولتك (مثال: حماية السعودية)
 
 ⏰ تنبيه هام:
-تُغلق قائمة الحماية عند الساعة 10:00 مساءً بشكل إلكتروني ولن يتم قبول أي طلبات بعدها.
+تُغلق قائمة الحماية عند الساعة 10:00 مساء الجمعة بشكل إلكتروني تليها النشر المباشر للقوائم المعتمدة.
 
-═══════════════
-
-🥇 جوائز القطع الذهبية 🥇
-
-الفائزون في السيرفر يحصلون على قطع ذهبية تضاف إلى رصيدهم بشكل دائم وتراكمي:
-
-🥇 المركز الأول: 100 قطعة ذهبية
-🥈 المركز الثاني: 90 قطعة ذهبية
-🥉 المركز الثالث: 80 قطعة ذهبية
-
-🏅 المركز الرابع: 70
-🏅 المركز الخامس: 60
-🏅 المركز السادس: 50
-🏅 المركز السابع: 40
-🏅 المركز الثامن: 30
-🏅 المركز التاسع: 20
-🏅 المركز العاشر: 10
-
-💰 تبقى القطع الذهبية محفوظة في رصيدك وتزداد مع كل سيرفر تشارك فيه وتحقق مركزاً متقدماً.
-
-═══════════════
-
-⚔️ أنت متواجد مع الأبطال...
-👑 معنا تبدأ رحلة المنافسة...
-🏆 السيرفر يكتب المجد لمن يستحقه...
-
-نتمنى لجميع المشاركين التوفيق والنجاح.
-
-🔥 أهلاً بكم في سيرفر الأبطال 🔥
-
-⚔️🏆👑🔥🚀💰🥇🥈🥉🎖️⚔️🏆👑🔥🚀💰🥇🥈🥉🎖️
-
-ملاحظة: يُنصح بالتسجيل مبكراً لتجنب ضغط التسجيلات قبل انطلاق السيرفر. 🚀
-يبدأ التسجيل من مساء الأربعاء حتى مساء الجمعة ويغلق التسجيل بعد ذلك."""
-
+نتمنى لجميع المشاركين التوفيق والنجاح! 🔥"""
                 bot.send_message(CHANNEL_ID, announcement_text)
                 posted_today_announcement = day_str
 
-            # --- 2. مواعيد التسجيل (الخميس 9:00 مساءً) ---
+            # --- 2. تحديثات المسجلين يوم الخميس ---
             if weekday == 3 and hour == 21 and minute == 0 and posted_today_events != f"thurs_{day_str}":
-                ws = sh.worksheet("المسجلين")
-                bot.send_message(CHANNEL_ID, "📢 قائمة المسجلين الحالية:\n" + "\n".join([f"- @{u}" for u in ws.col_values(1)[1:]]))
+                update_protection_and_champions_link()
                 posted_today_events = f"thurs_{day_str}"
 
             # --- 3. نشر قائمة الحماية النهائية وإغلاقها تلقائياً (الجمعة 10:00 مساءً) ---
             if weekday == 4 and hour == 22 and minute == 0 and posted_today_events != f"fri_{day_str}":
-                ws = sh.worksheet("الحماية")
-                all_rows = ws.get_all_values()
-                protection_lines = [f"- @{r[0]} -> {r[1]}" for r in all_rows[1:] if len(r) >= 2 and r[0].strip()]
+                # إغلاق قائمة الحماية رسمياً
+                set_protection_status(False)
+                # تحديث ونشر القائمة النهائية على الرابط 1462652
+                update_protection_and_champions_link()
                 
-                if protection_lines:
-                    protection_text = "🛡️ **قائمة الحماية النهائية لسيرفر الأبطال (مغلقة إلكترونياً):**\n\n" + "\n".join(protection_lines)
-                else:
-                    protection_text = "🛡️ **قائمة الحماية النهائية لسيرفر الأبطال:**\n\n📋 لم يتم تسجيل أي طلبات حماية لهذا الأسبوع."
-
-                bot.send_message(CHANNEL_ID, protection_text)
-                
-                # تصفير القوائم في جوجل شيت لتجهيزها للأسبوع المقبل تلقائياً
+                # تصفير القوائم المؤقتة في الجوجل شيت للأسبوع القادم تلقائياً
                 sh.worksheet("المسجلين").clear(); sh.worksheet("المسجلين").append_row(["username", "chat_id"])
                 sh.worksheet("الحماية").clear(); sh.worksheet("الحماية").append_row(["username", "country"])
                 posted_today_events = f"fri_{day_str}"
 
-            # --- 4. موعد نشر قائمة التفاعل اليومية والأسبوعية (كل يوم الساعة 8:00 مساءً) ---
+            # --- 4. تحديث قائمة التفاعل والرسائل على الرابط المخصص 1 (كل يوم الساعة 8:00 مساءً) ---
             if hour == 20 and minute == 0 and posted_today_msgs != f"msgs_{day_str}":
                 try: ws = sh.worksheet("المشاركات")
                 except: continue
@@ -458,10 +522,15 @@ def auto_post_scheduler():
                 daily_sorted = sorted(user_list, key=lambda x: x["daily"], reverse=True)[:50]
                 total_sorted = sorted(user_list, key=lambda x: x["total"], reverse=True)[:50]
 
+                interaction_text = ""
                 if daily_sorted:
-                    bot.send_message(CHANNEL_ID, "📊 **أعلى 50 عضو مشاركة اليوم:**\n\n" + "\n".join([f"{i+1}. @{u['username']} ({u['daily']} رسالة)" for i, u in enumerate(daily_sorted) if u["daily"] > 0]), parse_mode="Markdown")
+                    interaction_text += "📊 **أعلى 50 عضو مشاركة اليوم:**\n\n" + "\n".join([f"{i+1}. @{u['username']} ({u['daily']} رسالة)" for i, u in enumerate(daily_sorted) if u["daily"] > 0])
                 if total_sorted:
-                    bot.send_message(CHANNEL_ID, "📈 **أعلى 50 عضو مشاركة (تراكمي):**\n\n" + "\n".join([f"{i+1}. @{u['username']} ({u['total']} رسالة)" for i, u in enumerate(total_sorted) if u["total"] > 0]), parse_mode="Markdown")
+                    interaction_text += "\n\n📈 **أعلى 50 عضو مشاركة (تراكمي):**\n\n" + "\n".join([f"{i+1}. @{u['username']} ({u['total']} رسالة)" for i, u in enumerate(total_sorted) if u["total"] > 0])
+
+                if interaction_text:
+                    # النشر والتحديث التلقائي على الرابط رقم 1 المخصص للتفاعل
+                    publish_to_link(LINK_INTERACTION_ID, interaction_text)
 
                 new_sheet_data = [["user_id", "username", "total_msgs", "daily_msgs"]] + [[d["uid"], d["username"], str(d["total"]), "0"] for d in user_list]
                 ws.clear()
@@ -475,7 +544,7 @@ def auto_post_scheduler():
 threading.Thread(target=auto_post_scheduler, daemon=True).start()
 
 # ==========================================
-# 7. جدار الحماية، التحيات، وعداد الرسائل المخفي
+# 7. جدار الحماية، التحيات، وعداد الرسائل
 # ==========================================
 @bot.message_handler(func=lambda m: True)
 def count_and_greet(message):
