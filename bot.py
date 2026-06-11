@@ -277,27 +277,54 @@ def register_step_one(message):
         bot.reply_to(message, "❌ أنت في قائمة المخربين ولا يمكنك التسجيل.")
         return
 
-    msg = bot.reply_to(message, "✅ ممتاز! التسجيل مفتوح.\nيرجى الآن إرسال (اسم حسابك، أو رقم هاتفك، أو الـ ID الخاص بك) ليتم تسجيلك به في السيرفر:")
-    bot.register_next_step_handler(msg, process_registration_step)
+  @bot.message_handler(func=lambda m: m.text == "تسجيل")
+def register_step_one(message):
+    if message.chat.type != 'private':
+        bot.reply_to(message, "❌ يرجى التسجيل عبر مراسلتي في الخاص فقط.")
+        return
 
-def process_registration_step(message):
-    user_input = message.text.strip()
+    if not is_registration_open():
+        bot.reply_to(message, "❌ عذراً، باب التسجيل مغلق حالياً.\nيفتح التسجيل يوم الأربعاء الساعة 9 مساءً ويغلق الجمعة الساعة 9 مساءً بتوقيت مكة المكرمة.")
+        return
+
     chat_id = str(message.from_user.id)
-    
+    username = message.from_user.username
+    if check_user_in_list(chat_id, "المخربين") or (username and check_user_in_list(username, "المخربين")):
+        bot.reply_to(message, "❌ أنت في قائمة المخربين ولا يمكنك التسجيل.")
+        return
+
+    # === بداية كود التسجيل التلقائي الجديد ===
+    # تحديد المعرف: اسم الحساب (Username) أولاً، وإذا لم يوجد نستخدم الـ ID
+    if username:
+        user_identifier = f"@{username}"
+    else:
+        user_identifier = chat_id
+        
     try:
         ws = sh.worksheet("المسجلين")
-        all_identifiers = [u.lower().strip() for u in ws.col_values(1)]
+        
+        # جلب البيانات الحالية للتحقق من عدم تكرار التسجيل
+        all_identifiers = [str(u).lower().strip() for u in ws.col_values(1) if u] 
         all_chat_ids = ws.col_values(2)
         
-        if chat_id in all_chat_ids or user_input.lower() in all_identifiers:
-            bot.reply_to(message, "⚠️ حسابك مسجل بالفعل في النظام لهذا السيرفر.")
-        else:
-            ws.append_row([user_input, chat_id])
-            bot.reply_to(message, f"✅ تم تسجيلك بنجاح بالمعرف: {user_input}\nسيتم إرسال كود السيرفر لك هنا في الخاص عند بدء الفعالية.")
-            time.sleep(1)
-            bot.send_message(chat_id, SERVER_RULES, parse_mode="Markdown")
+        # التحقق إذا كان العضو مسجلاً مسبقاً
+        if user_identifier.lower() in all_identifiers or chat_id in all_chat_ids:
+            bot.reply_to(message, "⚠️ أنت مسجل بالفعل في النظام لهذا السيرفر.")
+            return
+
+        # حفظ البيانات الجديدة في الشيت (المعرف في العمود الأول، والـ ID في العمود الثاني)
+        ws.append_row([user_identifier, chat_id])
+        
+        # رسالة التأكيد
+        bot.reply_to(message, f"✅ تم تسجيلك تلقائياً بنجاح بالمعرف: {user_identifier}\nسيتم إرسال كود السيرفر لك هنا في الخاص عند بدء الفعالية.")
+        
+        # إرسال القوانين بعد التسجيل
+        time.sleep(1)
+        bot.send_message(chat_id, SERVER_RULES, parse_mode="Markdown")
+        
     except Exception as e:
         bot.reply_to(message, f"❌ حدث خطأ أثناء التسجيل: {e}")
+
 
 # ==========================================
 # 2. أوامر الحماية (الخاص فقط - للمسجلين فقط)
