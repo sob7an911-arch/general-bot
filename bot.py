@@ -41,7 +41,7 @@ CREDENTIALS_DICT = {
 # --- تهيئة البوت وقاعدة البيانات ---
 gc = gspread.service_account_from_dict(CREDENTIALS_DICT)
 sh = gc.open("General_Bot_Data")
-bot = telebot.TeleBot("8606943008:AAFx25Asp08gQVdYGc0D-qj9FVGyD_uMsjM")
+bot = telebot.TeleBot("8606943008:AAF_tzOvVEeSYjVfJMN_OGgiPzfXZa88ihc")
 
 MAIN_ADMIN = "ab0oturki"  
 CHANNEL_ID = "@abo_turky_genaral"  
@@ -277,22 +277,6 @@ def register_step_one(message):
         bot.reply_to(message, "❌ أنت في قائمة المخربين ولا يمكنك التسجيل.")
         return
 
-  @bot.message_handler(func=lambda m: m.text == "تسجيل")
-def register_step_one(message):
-    if message.chat.type != 'private':
-        bot.reply_to(message, "❌ يرجى التسجيل عبر مراسلتي في الخاص فقط.")
-        return
-
-    if not is_registration_open():
-        bot.reply_to(message, "❌ عذراً، باب التسجيل مغلق حالياً.\nيفتح التسجيل يوم الأربعاء الساعة 9 مساءً ويغلق الجمعة الساعة 9 مساءً بتوقيت مكة المكرمة.")
-        return
-
-    chat_id = str(message.from_user.id)
-    username = message.from_user.username
-    if check_user_in_list(chat_id, "المخربين") or (username and check_user_in_list(username, "المخربين")):
-        bot.reply_to(message, "❌ أنت في قائمة المخربين ولا يمكنك التسجيل.")
-        return
-
     # === بداية كود التسجيل التلقائي الجديد ===
     # تحديد المعرف: اسم الحساب (Username) أولاً، وإذا لم يوجد نستخدم الـ ID
     if username:
@@ -324,7 +308,6 @@ def register_step_one(message):
         
     except Exception as e:
         bot.reply_to(message, f"❌ حدث خطأ أثناء التسجيل: {e}")
-
 
 # ==========================================
 # 2. أوامر الحماية (الخاص فقط - للمسجلين فقط)
