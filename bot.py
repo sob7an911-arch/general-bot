@@ -182,19 +182,30 @@ def set_protection_status(status):
     with open("protection_status.txt", "w") as f:
         f.write("True" if status else "False")
 
+# تم التعديل هنا للقراءة من قوقل شيت (صفحة المشرفين الخلية B1) لضمان عدم ضياع الرقم عند إعادة تشغيل البوت على ريندر
 def get_current_server_number():
-    file_name = "server_number.txt"
     try:
-        with open(file_name, "r") as f: return int(f.read().strip())
+        ws = sh.worksheet("المشرفين")
+        val = ws.cell(1, 2).value  # السطر 1، العمود 2 تعني الخلية B1
+        if val and val.strip().isdigit():
+            return int(val.strip())
+        else:
+            ws.update_cell(1, 2, "112")
+            return 112
     except:
-        with open(file_name, "w") as f: f.write("111")
-        return 111
+        return 112
 
+# تم التعديل هنا للتحديث مباشرة في قوقل شيت ليكون ثابتاً
 def increment_server_number():
-    file_name = "server_number.txt"
-    num = get_current_server_number()
-    with open(file_name, "w") as f: f.write(str(num + 1))
-    return num + 1
+    try:
+        ws = sh.worksheet("المشرفين")
+        val = ws.cell(1, 2).value
+        num = int(val.strip()) if (val and val.strip().isdigit()) else 111
+        new_num = num + 1
+        ws.update_cell(1, 2, str(new_num))
+        return new_num
+    except:
+        return 112
 
 def publish_to_link(message_id, text):
     try:
@@ -277,8 +288,6 @@ def register_step_one(message):
         bot.reply_to(message, "❌ أنت في قائمة المخربين ولا يمكنك التسجيل.")
         return
 
-    # === بداية كود التسجيل التلقائي الجديد ===
-    # تحديد المعرف: اسم الحساب (Username) أولاً، وإذا لم يوجد نستخدم الـ ID
     if username:
         user_identifier = f"@{username}"
     else:
@@ -287,22 +296,16 @@ def register_step_one(message):
     try:
         ws = sh.worksheet("المسجلين")
         
-        # جلب البيانات الحالية للتحقق من عدم تكرار التسجيل
         all_identifiers = [str(u).lower().strip() for u in ws.col_values(1) if u] 
         all_chat_ids = ws.col_values(2)
         
-        # التحقق إذا كان العضو مسجلاً مسبقاً
         if user_identifier.lower() in all_identifiers or chat_id in all_chat_ids:
             bot.reply_to(message, "⚠️ أنت مسجل بالفعل في النظام لهذا السيرفر.")
             return
 
-        # حفظ البيانات الجديدة في الشيت (المعرف في العمود الأول، والـ ID في العمود الثاني)
         ws.append_row([user_identifier, chat_id])
-        
-        # رسالة التأكيد
         bot.reply_to(message, f"✅ تم تسجيلك تلقائياً بنجاح بالمعرف: {user_identifier}\nسيتم إرسال كود السيرفر لك هنا في الخاص عند بدء الفعالية.")
         
-        # إرسال القوانين بعد التسجيل
         time.sleep(1)
         bot.send_message(chat_id, SERVER_RULES, parse_mode="Markdown")
         
@@ -393,7 +396,8 @@ def admin_manage_lists(message):
                 bot.reply_to(message, f"📋 قائمة {target_list} فارغة حالياً.")
             else:
                 data_text = "\n".join([f"- {r}" for r in records[1:] if r.strip()])
-                bot.reply_to(message, f"📋 **محتوى قائمة {target_list}:**\n\n{data_text}", parse_mode="Markdown")
+                # تم إلغاء التنسيق هنا لحماية البوت من التوقف والـ Bad Request بسبب رموز الماركدوان بالأسماء
+                bot.reply_to(message, f"📋 محتوى قائمة {target_list}:\n\n{data_text}")
                 
         elif action in ["إضافة", "حذف"]:
             target_name = text.replace(action, "").replace("من", "").replace("قائمة", "").replace("إلى", "").replace(target_list, "").strip()
@@ -541,27 +545,71 @@ def check_my_msgs(message):
     bot.reply_to(message, f"📊 عدد مشاركاتك الكلية هو: {sheet_total + mem_count} مشاركة.")
 
 # ==========================================
-# 6. المجدل التلقائي وعداد الرسائل
+# 6. المجدل التلقائي الجديد (الأربعاء، الخميس، وإعلانات الجمعة كل ساعة)
 # ==========================================
 def auto_post_scheduler():
     posted_today_events = ""
     posted_today_msgs = ""
     posted_today_announcement = ""
+    posted_today_announcement_hourly = ""  # متغير لمنع تكرار الإعلان التنازلي في نفس الساعة
     
     while True:
         try:
             ksa = get_ksa_time()
             weekday, hour, minute, day_str = ksa.weekday(), ksa.hour, ksa.minute, ksa.strftime("%Y-%m-%d")
 
-            if weekday in [2, 3, 4] and hour == 20 and minute == 0 and posted_today_announcement != day_str:
+            # إعلان الأربعاء والخميس الثابت (الساعة 8 مساءً)
+            if weekday in [2, 3] and hour == 20 and minute == 0 and posted_today_announcement != day_str:
                 posted_today_announcement = day_str
                 server_num = increment_server_number() if weekday == 2 else get_current_server_number()
-                bot.send_message(CHANNEL_ID, f"🚨🔥 ســيــرفــر الأبــطــال يــنــطــلــق اللــيــلــة رقم {server_num} 🔥🚨\n(الإعلان التلقائي...)")
+                
+                announcement_text = f"🚨🔥 **ســيــرفــر الأبــطــال يــنــطــلــق قــريــبــاً رقم {server_num}** 🔥🚨\n\n" \
+                                    f"يا أبطال **\"نخبة العرب\"**، باب التسجيل مفتوح حالياً لتجهيز الجيوش والمواجهات! ⚔️👑\n\n" \
+                                    f"📝 **[طريقة المشاركة]:**\n" \
+                                    f"1️⃣ ادخل إلى الخاص بالبوت.\n" \
+                                    f"2️⃣ أرسل كلمة (**تسجيل**).\n\n" \
+                                    f"💰 **[المكافآت]:** مكافآت ضخمة من **القطع الذهبية** بانتظار الفائزين بالصدارة! 🟡🏆"
+                try:
+                    bot.send_message(CHANNEL_ID, announcement_text, parse_mode="Markdown")
+                except:
+                    pass
 
+            # إعلانات يوم الجمعة التفاعلية والحماسية كل ساعة (تبدأ من 1 ظهراً حتى 9 مساءً - ساعة الصفر)
+            if weekday == 4 and 13 <= hour <= 21 and minute == 0 and posted_today_announcement_hourly != f"{day_str}_{hour}":
+                posted_today_announcement_hourly = f"{day_str}_{hour}"
+                server_num = get_current_server_number()
+                hours_left = 21 - hour  # تحديد موعد الانطلاق الساعة 9 مساءً (التوقيت 21)
+                
+                if hours_left > 0:
+                    time_text = f"بعد {hours_left} ساعة من الآن" if hours_left > 1 else "بعد ساعة واحدة من الآن"
+                    announcement_text = f"🔥🚨 **سيرفر الأبطال رقم {server_num} ينطلق الليلة!** 🚨🔥\n\n" \
+                                        f"يا أبطال **\"نخبة العرب\"**، جهزوا استراتيجياتكم وتحالفاتكم واستعدوا للمواجهة الكبرى! ⚔️👑\n\n" \
+                                        f"⏱️ **[التوقيت]:** ينطلق السيرفر الليلة! (متبقي **{time_text}** فقط على الانطلاق الرسمي عند الساعة 9:00 مساءً).\n" \
+                                        f"💰 **[المكافآت]:** المراكز الأولى ينتظرها تكريم خاص ومكافآت ضخمة من **القطع الذهبية** تصل إلى 100 قطعة للمركز الأول! 🟡🏆\n\n" \
+                                        f"📝 **[طريقة المشاركة في السيرفر]:**\n" \
+                                        f"لضمان تسجيلك وتواجدك مع الأبطال المعتمدين:\n" \
+                                        f"1️⃣ ادخل إلى الخاص بالبوت الحالي.\n" \
+                                        f"2️⃣ أرسل كلمة (**تسجيل**).\n" \
+                                        f"3️⃣ سيقوم البوت بتسجيلك فوراً ويُرسل لك القوانين الرسمية، وعند انطلاق السيرفر سيوصلك الكود مباشرة في الخاص!\n\n" \
+                                        f"🎯 لا تفوتوا الفرصة.. النصر حليف الأقوى والأذكى! 🚀"
+                else:
+                    # عند الساعة 9 مساءً بالضبط (ساعة الصفر)
+                    announcement_text = f"🔥🚨 **الانطلاق الرسمي لـ سيرفر الأبطال رقم {server_num}!** 🚨🔥\n\n" \
+                                        f"يا أبطال **\"نخبة العرب\"**، دفت ساعة الصفر العظمى وانطلق السيرفر الآن! ⚔️👑\n\n" \
+                                        f"💰 **[المكافآت]:** صراع الذهب قد بدأ! مكافآت **القطع الذهبية** بانتظار ملوك الصدارة! 🟡🏆\n" \
+                                        f"📝 **[طريقة المشاركة]:** إذا كنت مسجلاً في البوت، تفقد الخاص الآن فقد تم إرسال كود السيرفر الرسمي لك! نتمنى لكم معارك طاحنة ونصر مجيد.\n\n" \
+                                        f"🎯 بالتوفيق لجميع الأبطال.. أرونا قوتكم الهجومية! 🚀"
+                try:
+                    bot.send_message(CHANNEL_ID, announcement_text, parse_mode="Markdown")
+                except:
+                    pass
+
+            # جدولة الروابط يوم الخميس الساعة 9 مساءً
             if weekday == 3 and hour == 21 and minute == 0 and posted_today_events != f"thurs_{day_str}":
                 posted_today_events = f"thurs_{day_str}"
                 update_protection_and_champions_link()
 
+            # تصفير القوائم يوم الجمعة الساعة 10 مساءً بعد الانطلاق
             if weekday == 4 and hour == 22 and minute == 0 and posted_today_events != f"fri_{day_str}":
                 posted_today_events = f"fri_{day_str}"
                 set_protection_status(False)
@@ -569,6 +617,7 @@ def auto_post_scheduler():
                 sh.worksheet("المسجلين").clear(); sh.worksheet("المسجلين").append_row(["username", "chat_id"])
                 sh.worksheet("الحماية").clear(); sh.worksheet("الحماية").append_row(["username", "country"])
 
+            # عداد الإحصائيات اليومي للرسائل (الساعة 8 مساءً)
             if hour == 20 and minute == 0 and posted_today_msgs != f"msgs_{day_str}":
                 posted_today_msgs = f"msgs_{day_str}" 
                 try:
