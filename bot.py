@@ -41,7 +41,7 @@ CREDENTIALS_DICT = {
 # --- تهيئة البوت وقاعدة البيانات ---
 gc = gspread.service_account_from_dict(CREDENTIALS_DICT)
 sh = gc.open("General_Bot_Data")
-bot = telebot.TeleBot("8606943008:AAF_tzOvVEeSYjVfJMN_OGgiPzfXZa88ihc")
+bot = telebot.TeleBot("8606943008:AAGqtpRSEUEQSuIWoLlDo3GRUN1kMN1tIJs")
 
 MAIN_ADMIN = "ab0oturki"  
 CHANNEL_ID = "@abo_turky_genaral"  
