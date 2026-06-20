@@ -284,8 +284,8 @@ def show_admin_commands(message):
 🔹 `افتح الحماية`: لفتح تسجيل الحماية يدوياً (إن لزم الأمر).
 🔹 `اغلق الحماية`: لإغلاق تسجيل الحماية يدوياً.
 🔹 `إضافة [الاسم] إلى قائمة [المسجلين/المخربين/المشرفين]`
-🔹 `حذف [الاسم] من قائمة [المسجلين/الحماية/المخربين/المشرفين]`
-🔹 `عرض [المخربين/المشرفين/الأبطال]`: لعرض القوائم الخاصة (أما الحماية والمسجلين متاحة للجميع)."""
+🔹 `حذف [الاسم] من قائمة [المسجلين/الحماية/المخربين/المشرفين/الأبطال]`
+🔹 `عرض [المخربين/المشرفين]`: لعرض القوائم الخاصة (قوائم الحماية، المسجلين، والأبطال متاحة للجميع)."""
     bot.reply_to(message, cmds, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text in ['افتح الحماية', 'افتح الحمايه'])
@@ -302,12 +302,8 @@ def close_protection_cmd(message):
     update_protection_and_champions_link()
     bot.reply_to(message, "🔒 **تم إغلاق قائمة الحماية والتسجيل.**\nلا يمكن تسجيل دول جديدة حالياً.", parse_mode="Markdown")
 
-@bot.message_handler(func=lambda m: m.text and (m.text.startswith("إضافة") or m.text.startswith("حذف") or m.text.startswith("عرض")))
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith("إضافة") or m.text.startswith("حذف") or (m.text.startswith("عرض") and m.text not in ["عرض المسجلين", "عرض الحماية", "عرض الحمايه", "عرض الأبطال", "عرض الابطال"])))
 def admin_manage_lists(message):
-    # نستثني أوامر العرض العامة من شرط المشرفين
-    public_cmds = ["عرض المسجلين", "عرض الحماية", "عرض الحمايه"]
-    if message.text.strip() in public_cmds: return
-
     if not is_moderator(message.from_user.username): return
 
     text = message.text.strip()
@@ -357,7 +353,7 @@ def admin_manage_lists(message):
 # ==========================================
 # 1. أوامر العرض العامة للجميع
 # ==========================================
-@bot.message_handler(func=lambda m: m.text in ["عرض المسجلين", "عرض الحماية", "عرض الحمايه"])
+@bot.message_handler(func=lambda m: m.text in ["عرض المسجلين", "عرض الحماية", "عرض الحمايه", "عرض الأبطال", "عرض الابطال"])
 def public_show_lists(message):
     try:
         if message.text == "عرض المسجلين":
@@ -368,9 +364,26 @@ def public_show_lists(message):
             else:
                 data_text = "\n".join([f"👤 {r}" for r in records if r.strip()])
                 bot.reply_to(message, f"📋 **قائمة المسجلين الحالية:**\n\n{data_text}", parse_mode="Markdown")
-        else:
+        
+        elif message.text in ["عرض الحماية", "عرض الحمايه"]:
             prot_text = get_protection_list_text()
             bot.reply_to(message, prot_text, parse_mode="Markdown")
+            
+        elif message.text in ["عرض الأبطال", "عرض الابطال"]:
+            ws_champ = sh.worksheet("الأبطال")
+            champ_rows = ws_champ.get_all_values()[1:]
+            # سحب البيانات والتأكد من أن القيمة عبارة عن أرقام لترتيبها بشكل صحيح
+            scores = [(r[0].strip(), int(r[1])) for r in champ_rows if len(r) >= 2 and r[1].isdigit()]
+            # ترتيب تنازلي بناءً على النقاط (الذهب)
+            sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)
+            
+            champ_text = "🏅 **ترتيب أبطال نخبة العرب (الذهب التراكمي):**\n\n"
+            if sorted_scores:
+                champ_text += "\n".join([f"{i+1}. {u} ({p} ذهب)" for i, (u, p) in enumerate(sorted_scores)])
+            else:
+                champ_text += "📋 القائمة فارغة حالياً."
+            bot.reply_to(message, champ_text, parse_mode="Markdown")
+
     except Exception as e:
         bot.reply_to(message, f"❌ خطأ في جلب البيانات: {e}")
 
