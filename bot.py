@@ -39,10 +39,14 @@ CREDENTIALS_DICT = {
   "token_uri": "https://oauth2.googleapis.com/token"
 }
 
+# 🌟 السطر السحري لحل مشكلة توثيق مفتاح جوجل (PEM file) على سيرفر Render 🌟
+if "private_key" in CREDENTIALS_DICT and CREDENTIALS_DICT["private_key"]:
+    CREDENTIALS_DICT["private_key"] = CREDENTIALS_DICT["private_key"].replace('\\n', '\n')
+
 # --- تهيئة البوت وقاعدة البيانات ---
 gc = gspread.service_account_from_dict(CREDENTIALS_DICT)
 sh = gc.open("General_Bot_Data")
-bot = telebot.TeleBot("YOUR_BOT_TOKEN") # ⚠️ 8606943008:AAG0DKfORqCpZP7LeuSQG-DwQpgzTDwfLMk
+bot = telebot.TeleBot("YOUR_BOT_TOKEN") # 8606943008:AAG0DKfORqCpZP7LeuSQG-DwQpgzTDwfLMk
 
 MAIN_ADMIN = "ab0oturki"  
 CHANNEL_ID = "@abo_turky_genaral"  
