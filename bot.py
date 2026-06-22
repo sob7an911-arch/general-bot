@@ -46,7 +46,7 @@ if "private_key" in CREDENTIALS_DICT and CREDENTIALS_DICT["private_key"]:
 # --- تهيئة البوت وقاعدة البيانات ---
 gc = gspread.service_account_from_dict(CREDENTIALS_DICT)
 sh = gc.open("General_Bot_Data")
-bot = telebot.TeleBot("YOUR_BOT_TOKEN") # 8606943008:AAG0DKfORqCpZP7LeuSQG-DwQpgzTDwfLMk
+bot = telebot.TeleBot("YOUR_BOT_TOKEN") # 8606943008:AAGOjRgICsl1nGNCy3FhIGN37v1CcgH01pw
 
 MAIN_ADMIN = "ab0oturki"  
 CHANNEL_ID = "@abo_turky_genaral"  
